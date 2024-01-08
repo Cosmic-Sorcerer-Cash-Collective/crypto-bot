@@ -166,7 +166,7 @@ function sendDailyProfitSummary() {
     }
 }
 
-setInterval(sendDailyProfitSummary, 60000);
-setInterval(checkAndSendMessage, 1000);
+// setInterval(sendDailyProfitSummary, 60000);
+// setInterval(checkAndSendMessage, 1000);
 
 console.log('Bot started');
