@@ -1,89 +1,52 @@
-import * as fs from 'fs';
+import { TechnicalIndicator } from "./TechnicalIndicator";
+import { dataBinance } from "./utils/type";
 
-export class BotInstance {
-  private logs: string[];
-  private instanceName: string;
+export class BotAlgorithm {
+  private macdShortPeriod: number;
+  private macdLongPeriod: number;
+  private macdSignalPeriod: number;
+  private rsiPeriod: number;
+  private lastDecision: string;
 
-  constructor(private filePath: string, instanceName: string) {
-    this.logs = this.readLogsFromFile();
-    this.instanceName = instanceName;
+  constructor(macdShortPeriod: number, macdLongPeriod: number, macdSignalPeriod: number, rsiPeriod: number, lastDecision: string) {
+    this.macdShortPeriod = macdShortPeriod;
+    this.macdLongPeriod = macdLongPeriod;
+    this.macdSignalPeriod = macdSignalPeriod;
+    this.rsiPeriod = rsiPeriod;
+    this.lastDecision = lastDecision
   }
 
-  private readLogsFromFile(): string[] {
-    try {
-      return fs.readFileSync(this.filePath, 'utf8').split('\n');
-    } catch (error) {
-      console.error('Erreur lors de la lecture du fichier:', error);
-      return [];
+  public setMacdShortPeriod(macdShortPeriod: number): void {
+    this.macdShortPeriod = macdShortPeriod;
+  }
+
+  public setMacdLongPeriod(macdLongPeriod: number): void {
+    this.macdLongPeriod = macdLongPeriod;
+  }
+
+  public setMacdSignalPeriod(macdSignalPeriod: number): void {
+    this.macdSignalPeriod = macdSignalPeriod;
+  }
+
+  public setRsiPeriod(rsiPeriod: number): void {
+    this.rsiPeriod = rsiPeriod;
+  }
+
+  public async tradeDecision(data: dataBinance[]): Promise<string | null> {
+    const technicalIndicator = new TechnicalIndicator();
+    const macd = technicalIndicator.calculateMACD(data, this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod);
+    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod);
+    const lastMacd = macd[macd.length - 1];
+    const lastRsi = rsi[rsi.length - 1];
+    let decision: string | null = null;
+
+    if (lastMacd > 0 && lastRsi > 70 && this.lastDecision !== 'BUY') {
+      decision = 'SELL';
+      this.lastDecision = 'SELL';
+    } else if (lastMacd < 0 && lastRsi < 30 && this.lastDecision !== 'SELL') {
+      decision = 'BUY';
+      this.lastDecision = 'BUY';
     }
-  }
-
-  public getInstanceName(): string {
-    return this.instanceName;
-  }
-
-  private calculateProfits(): {
-    profitsByDay: [string, number][];
-    profitsByMonth: [string, number][];
-    profitsByYear: [string, number][];
-  } {
-    this.logs = this.readLogsFromFile();
-    const profitsByDay: Map<string, number> = new Map();
-    const profitsByMonth: Map<string, number> = new Map();
-    const profitsByYear: Map<string, number> = new Map();
-
-    this.logs.forEach((log) => {
-
-      const dateMatch = log.match(/\[(.*?)\]/);
-      const timestamp = dateMatch ? new Date(dateMatch[1]) : null;
-
-      const profitMatch = log.match(/Profit : (.*?)%/);
-      const profitPercentage = profitMatch ? parseFloat(profitMatch[1]) : null;
-
-      if (timestamp !== null && profitPercentage !== null) {
-        const dayKey = timestamp.toISOString().split('T')[0];
-        profitsByDay.set(dayKey, (profitsByDay.get(dayKey) || 0) + profitPercentage);
-
-        const monthKey = `${timestamp.getFullYear()}-${timestamp.getMonth() + 1}`;
-        profitsByMonth.set(monthKey, (profitsByMonth.get(monthKey) || 0) + profitPercentage);
-
-        const yearKey = timestamp.getFullYear().toString();
-        profitsByYear.set(yearKey, (profitsByYear.get(yearKey) || 0) + profitPercentage);
-      }
-    });
-
-    return {
-      profitsByDay: Array.from(profitsByDay.entries()),
-      profitsByMonth: Array.from(profitsByMonth.entries()),
-      profitsByYear: Array.from(profitsByYear.entries()),
-    };
-  }
-
-
-  public analyzeLogs(): {
-    profitsByDay: [string, number][];
-    profitsByMonth: [string, number][];
-    profitsByYear: [string, number][];
-  } {
-    if (this.logs.length > 0) {
-      return this.calculateProfits();
-    } else {
-      console.log(`[${this.instanceName}] Aucun log trouvé.`);
-      return {
-        profitsByDay: [],
-        profitsByMonth: [],
-        profitsByYear: [],
-      };
-    }
-  }
-
-  public hasMadeProfit(): boolean {
-    const profits = this.calculateProfits();
-    const totalProfit =
-      profits.profitsByDay.reduce((acc, [_, profit]) => acc + profit, 0) +
-      profits.profitsByMonth.reduce((acc, [_, profit]) => acc + profit, 0) +
-      profits.profitsByYear.reduce((acc, [_, profit]) => acc + profit, 0);
-
-    return totalProfit > 0;
+    return decision;
   }
 }
