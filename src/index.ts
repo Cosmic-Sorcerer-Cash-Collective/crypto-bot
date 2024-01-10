@@ -18,58 +18,58 @@ const botInstance: typeInstance[] = [
     macdLongPeriod: 26,
     macdSignalPeriod: 9,
     rsiPeriod: 14,
-    lastDecision: 'HOLD'
+    lastDecision: ['HOLD']
+  },
+  {
+    id: 1,
+    symbol: 'ETHUSDT',
+    interval: '1m',
+    macdShortPeriod: 12,
+    macdLongPeriod: 26,
+    macdSignalPeriod: 9,
+    rsiPeriod: 14,
+    lastDecision: ['HOLD']
+  },
+  {
+    id: 2,
+    symbol: 'BNBUSDT',
+    interval: '1m',
+    macdShortPeriod: 12,
+    macdLongPeriod: 26,
+    macdSignalPeriod: 9,
+    rsiPeriod: 14,
+    lastDecision: ['HOLD']
+  },
+  {
+    id: 3,
+    symbol: 'BONKUSDT',
+    interval: '1m',
+    macdShortPeriod: 12,
+    macdLongPeriod: 26,
+    macdSignalPeriod: 9,
+    rsiPeriod: 14,
+    lastDecision: ['HOLD']
+  },
+  {
+    id: 4,
+    symbol: 'NFPUSDT',
+    interval: '1m',
+    macdShortPeriod: 12,
+    macdLongPeriod: 26,
+    macdSignalPeriod: 9,
+    rsiPeriod: 14,
+    lastDecision: ['HOLD']
+  },
+  {
+    id: 5,
+    symbol: 'DOCKUSDT',
+    interval: '1m',
+    macdShortPeriod: 12,
+    macdLongPeriod: 26,
+    macdSignalPeriod: 9,
+    rsiPeriod: 14,
+    lastDecision: ['HOLD']
   }
-  // {
-  //     id: 1,
-  //     symbol: 'ETHUSDT',
-  //     interval: '1m',
-  //     macdShortPeriod: 12,
-  //     macdLongPeriod: 26,
-  //     macdSignalPeriod: 9,
-  //     rsiPeriod: 14,
-  //     lastDecision: 'HOLD'
-  // },
-  // {
-  //     id: 2,
-  //     symbol: 'BNBUSDT',
-  //     interval: '1m',
-  //     macdShortPeriod: 12,
-  //     macdLongPeriod: 26,
-  //     macdSignalPeriod: 9,
-  //     rsiPeriod: 14,
-  //     lastDecision: 'HOLD'
-  // },
-  // {
-  //     id: 3,
-  //     symbol: 'BONKUSDT',
-  //     interval: '1m',
-  //     macdShortPeriod: 12,
-  //     macdLongPeriod: 26,
-  //     macdSignalPeriod: 9,
-  //     rsiPeriod: 14,
-  //     lastDecision: 'HOLD'
-  // },
-  // {
-  //     id: 4,
-  //     symbol: 'NFPUSDT',
-  //     interval: '1m',
-  //     macdShortPeriod: 12,
-  //     macdLongPeriod: 26,
-  //     macdSignalPeriod: 9,
-  //     rsiPeriod: 14,
-  //     lastDecision: 'HOLD'
-  // },
-  // {
-  //     id: 5,
-  //     symbol: 'DOCKUSDT',
-  //     interval: '1m',
-  //     macdShortPeriod: 12,
-  //     macdLongPeriod: 26,
-  //     macdSignalPeriod: 9,
-  //     rsiPeriod: 14,
-  //     lastDecision: 'HOLD'
-  // }
 ]
 
 async function sendMessage (message: string, chatId?: number): Promise<void> {
@@ -103,7 +103,8 @@ bot.onText(/\/addinstance (.+) (.+)(?: (\d+)(?: (\d+)(?: (\d+)(?: (\d+))?)?)?)?/
     macdShortPeriod,
     macdLongPeriod,
     macdSignalPeriod,
-    rsiPeriod
+    rsiPeriod,
+    lastDecision: ['HOLD']
   }
   botInstance.push(instance)
   sendMessage(`Instance ajoutée: ${symbol} ${interval}`, chatId) as any
@@ -137,34 +138,35 @@ bot.onText(/\/listinstances/, (msg) => {
 })
 
 async function main (): Promise<void> {
+  let tmp: string = 'HOLD'
   if (botInstance.length !== 0) {
     for (const instance of botInstance) {
       const binance = new Binance(instance.symbol, instance.interval, 100)
       const data = await binance.fetchMarketData()
-      const algo = new BotAlgorithm(instance.macdShortPeriod, instance.macdLongPeriod, instance.macdSignalPeriod, instance.rsiPeriod, instance.lastDecision ?? 'SELL')
+      const algo = new BotAlgorithm(instance.macdShortPeriod, instance.macdLongPeriod, instance.macdSignalPeriod, instance.rsiPeriod, instance.lastDecision[instance.lastDecision.length - 1])
       const decision = await algo.tradeDecision(data)
-      if (decision === 'BUY' && instance.lastDecision !== 'BUY') {
-        const updateInstance = botInstance.find((ins: typeInstance) => ins.id === instance.id)
-        if (updateInstance === undefined) {
-          await bot.sendMessage(channel, `Instance non trouvée: ${instance.id}`)
-          return
-        }
-        updateInstance.lastDecision = 'BUY'
+      if (decision === 'BUY' && instance.lastDecision.find((i) => i === 'BUY') === undefined) {
+        tmp = 'BUY'
         await bot.sendMessage(channel, `📈 BUY ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
-      } else if (decision === 'SELL' && instance.lastDecision !== 'SELL') {
-        const updateInstance = botInstance.find((ins: typeInstance) => ins.id === instance.id)
-        if (updateInstance === undefined) {
-          await bot.sendMessage(channel, `Instance non trouvée: ${instance.id}`)
-          return
-        }
-        updateInstance.lastDecision = 'SELL'
+      } else if (decision === 'SELL' && instance.lastDecision.find((i) => i === 'SELL') === undefined) {
+        tmp = 'SELL'
         await bot.sendMessage(channel, `📉 SELL ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
+      } else {
+        tmp = 'HOLD'
       }
+      const updateInstance = botInstance.find((i) => i.id === instance.id)
+      if (updateInstance !== undefined) {
+        if (updateInstance.lastDecision.length === 10) {
+          updateInstance.lastDecision.shift()
+        }
+        updateInstance.lastDecision.push(tmp)
+      }
+      tmp = 'HOLD'
     }
   }
 }
 
 setInterval(() => {
   main() as any
-}, 1000 * 60)
+}, 10000)
 console.log('Bot started')

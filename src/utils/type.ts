@@ -21,7 +21,7 @@ export interface typeInstance {
   macdLongPeriod: number
   macdSignalPeriod: number
   rsiPeriod: number
-  lastDecision?: string
+  lastDecision: string[]
 }
 
 export interface macdIndicator {
