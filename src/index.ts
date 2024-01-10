@@ -43,7 +43,7 @@ const botInstance: typeInstance[] = [
   {
     id: 3,
     symbol: 'BONKUSDT',
-    interval: '1m',
+    interval: '1h',
     macdShortPeriod: 12,
     macdLongPeriod: 26,
     macdSignalPeriod: 9,
@@ -53,7 +53,7 @@ const botInstance: typeInstance[] = [
   {
     id: 4,
     symbol: 'NFPUSDT',
-    interval: '1m',
+    interval: '1h',
     macdShortPeriod: 12,
     macdLongPeriod: 26,
     macdSignalPeriod: 9,
@@ -63,7 +63,7 @@ const botInstance: typeInstance[] = [
   {
     id: 5,
     symbol: 'DOCKUSDT',
-    interval: '1m',
+    interval: '1h',
     macdShortPeriod: 12,
     macdLongPeriod: 26,
     macdSignalPeriod: 9,
@@ -141,10 +141,11 @@ async function main (): Promise<void> {
   let tmp: string = 'HOLD'
   if (botInstance.length !== 0) {
     for (const instance of botInstance) {
+      // console.log(`Instance: ${instance.symbol} ${instance.interval}`)
       const binance = new Binance(instance.symbol, instance.interval, 100)
       const data = await binance.fetchMarketData()
       const algo = new BotAlgorithm(instance.macdShortPeriod, instance.macdLongPeriod, instance.macdSignalPeriod, instance.rsiPeriod, instance.lastDecision[instance.lastDecision.length - 1])
-      const decision = await algo.tradeDecision(data)
+      const { decision } = await algo.tradeDecision(data)
       if (decision === 'BUY' && instance.lastDecision.find((i) => i === 'BUY') === undefined) {
         tmp = 'BUY'
         await bot.sendMessage(channel, `📈 BUY ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
@@ -168,5 +169,5 @@ async function main (): Promise<void> {
 
 setInterval(() => {
   main() as any
-}, 10000)
+}, 2500)
 console.log('Bot started')

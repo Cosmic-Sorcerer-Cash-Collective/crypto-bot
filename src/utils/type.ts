@@ -29,3 +29,8 @@ export interface macdIndicator {
   signal: number
   histogram: number
 }
+
+export interface typeTradeDecision {
+  decision: string
+  macd: number
+}

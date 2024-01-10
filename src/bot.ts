@@ -1,5 +1,5 @@
 import { TechnicalIndicator } from './TechnicalIndicator'
-import { type dataBinance } from './utils/type'
+import { type typeTradeDecision, type dataBinance } from './utils/type'
 
 export class BotAlgorithm {
   private macdShortPeriod: number
@@ -32,19 +32,27 @@ export class BotAlgorithm {
     this.rsiPeriod = rsiPeriod
   }
 
-  public async tradeDecision (data: dataBinance[]): Promise<string | null> {
+  public async tradeDecision (data: dataBinance[]): Promise<typeTradeDecision> {
     const technicalIndicator = new TechnicalIndicator()
-    const macd = technicalIndicator.calculateMACD(data, this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod)
+    const { histogram, macd } = technicalIndicator.calculateMACD(data, this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod)
+    const lastHistogram = technicalIndicator.calculateMACD(data.slice(0, data.length - 1), this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod).histogram
     const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod)
-    let decision: string | null = null
+    const lastRSI = technicalIndicator.calculateRSI(data.slice(0, data.length - 1), this.rsiPeriod)
+    let decision: string = 'HOLD'
+    const threshold = 0.001
 
-    if (macd.macd < macd.signal && macd.histogram > 0 && rsi < 30 && this.lastDecision !== 'BUY') {
-      decision = 'BUY'
-    } else if (macd.macd > macd.signal && macd.histogram < 0 && rsi > 70 && this.lastDecision !== 'SELL') {
+    if (histogram > threshold && lastHistogram < threshold && rsi > 70 && lastRSI < 70) {
       decision = 'SELL'
+    } else if (histogram < -threshold && lastHistogram > -threshold && rsi < 30 && lastRSI > 30) {
+      decision = 'BUY'
+    } else if (lastRSI > 70 && rsi < 70) {
+      decision = 'SELL'
+    } else if (lastRSI < 30 && rsi > 30) {
+      decision = 'BUY'
     } else {
-      decision = 'HOLD'
+      decision = this.lastDecision
     }
-    return decision
+
+    return { decision, macd }
   }
 }
