@@ -1,70 +1,78 @@
-import { dataBinance } from "./utils/type";
+import { type dataBinance, type macdIndicator } from './utils/type'
 
 export class TechnicalIndicator {
-    calculateMACD(data: dataBinance[], shortPeriod: number, longPeriod: number, signalPeriod: number): number[] {
-        const prices = data.map((entry) => parseFloat(entry.close));
-        const shortEMA = this.calculateEMA(prices, shortPeriod);
-        const longEMA = this.calculateEMA(prices, longPeriod);
-        const macdLine: number[] = [];
+  calculateMACD (data: dataBinance[], shortPeriod: number = 12, longPeriod: number = 26, signalPeriod: number = 9): macdIndicator {
+    const prices = data.map((entry) => parseFloat(entry.close))
 
-        for (let i = longPeriod - 1; i < prices.length; i++) {
-          const macdValue = shortEMA[i] - longEMA[i];
-          macdLine.push(macdValue);
-        }
+    const shortEMA = this.calculateEMA(prices, shortPeriod)
+    const longEMA = this.calculateEMA(prices, longPeriod)
 
-        const signalLine = this.calculateEMA(macdLine, signalPeriod);
-        const histogram: number[] = macdLine.map((macd, i) => macd - signalLine[i]);
+    const macdLine = this.calculateMACDLine(shortEMA, longEMA)
+    const signalLine = this.calculateSignalLine(macdLine, signalPeriod)
+    const histogram = this.calculateHistogram(macdLine, signalLine)
 
-        return histogram;
+    return {
+      macd: macdLine.slice(-1)[0],
+      signal: signalLine.slice(-1)[0],
+      histogram: histogram.slice(-1)[0]
+    }
+  }
+
+  private calculateMACDLine (shortEMA: number[], longEMA: number[]): number[] {
+    return shortEMA.map((short, index) => short - longEMA[index])
+  }
+
+  private calculateSignalLine (macdLine: number[], signalPeriod: number): number[] {
+    return this.calculateEMA(macdLine, signalPeriod)
+  }
+
+  private calculateHistogram (macdLine: number[], signalLine: number[]): number[] {
+    return macdLine.map((macd, index) => macd - signalLine[index])
+  }
+
+  calculateRSI (data: dataBinance[], period: number): number {
+    const prices = data.map((entry) => parseFloat(entry.close))
+
+    let avgGain = 0
+    let avgLoss = 0
+
+    for (let i = 1; i < prices.length; i++) {
+      const priceDiff = prices[i] - prices[i - 1]
+      if (priceDiff >= 0) {
+        avgGain = (avgGain * (period - 1) + priceDiff) / period
+        avgLoss = (avgLoss * (period - 1)) / period
+      } else {
+        avgGain = (avgGain * (period - 1)) / period
+        avgLoss = (avgLoss * (period - 1) - priceDiff) / period
       }
+    }
 
-      calculateRSI(data: dataBinance[], period: number): number[] {
-        const prices = data.map((entry) => parseFloat(entry.close));
-        const gains: number[] = [];
-        const losses: number[] = [];
+    const relativeStrength = avgGain / avgLoss
+    const rsi: number = 100 - (100 / (1 + relativeStrength))
 
-        for (let i = 1; i < prices.length; i++) {
-          const priceDifference = prices[i] - prices[i - 1];
-          if (priceDifference > 0) {
-            gains.push(priceDifference);
-            losses.push(0);
-          } else {
-            gains.push(0);
-            losses.push(-priceDifference);
-          }
-        }
+    return rsi
+  }
 
-        const avgGain = this.calculateAverage(gains, period);
-        const avgLoss = this.calculateAverage(losses, period);
-        const rsi: number[] = [];
+  calculateSMA (data: number[], period: number): number[] {
+    const smaValues: number[] = []
 
-        for (let i = period; i < prices.length; i++) {
-          const relativeStrength = avgGain[i - period] / avgLoss[i - period];
-          const rsIndex = 100 - (100 / (1 + relativeStrength));
-          rsi.push(rsIndex);
-        }
-        return rsi;
-      }
+    for (let i = period - 1; i < data.length; i++) {
+      const sum = data.slice(i - period + 1, i + 1).reduce((total, value) => total + value, 0)
+      const sma = sum / period
+      smaValues.push(sma)
+    }
 
-      calculateEMA(prices: number[], period: number): number[] {
-        const multiplier = 2 / (period + 1);
-        const ema: number[] = [prices[0]];
+    return smaValues
+  }
 
-        for (let i = 1; i < prices.length; i++) {
-          const emaValue = (prices[i] - ema[i - 1]) * multiplier + ema[i - 1];
-          ema.push(emaValue);
-        }
-
-        return ema;
-      }
-      calculateAverage(values: number[], period: number): number[] {
-        const average: number[] = [];
-
-        for (let i = period - 1; i < values.length; i++) {
-          const sum = values.slice(i - period + 1, i + 1).reduce((acc, val) => acc + val, 0);
-          average.push(sum / period);
-        }
-
-        return average;
-      }
+  calculateEMA (prices: number[], period: number): number[] {
+    const k = 2 / (period + 1)
+    const emaValues: number[] = []
+    let ema = prices[0]
+    for (const price of prices) {
+      ema = (price * k) + (ema * (1 - k))
+      emaValues.push(ema)
+    }
+    return emaValues
+  }
 }

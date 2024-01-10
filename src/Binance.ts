@@ -1,26 +1,26 @@
-import axios from 'axios';
-import { dataBinance } from './utils/type';
+import axios from 'axios'
+import { type dataBinance } from './utils/type'
 
 export class Binance {
-  private symbol: string;
-  private interval: string;
-  private limit: number;
+  private readonly symbol: string
+  private readonly interval: string
+  private readonly limit: number
 
-  constructor(symbol: string, interval: string, limit: number) {
-    this.symbol = symbol;
-    this.interval = interval;
-    this.limit = limit;
+  constructor (symbol: string, interval: string, limit: number) {
+    this.symbol = symbol
+    this.interval = interval
+    this.limit = limit
   }
 
-  public async fetchMarketData(): Promise<dataBinance[]> {
+  public async fetchMarketData (): Promise<dataBinance[]> {
     const klinesResponse = await axios.get('https://api.binance.com/api/v3/klines', {
       params: {
         symbol: this.symbol,
         interval: this.interval,
-        limit: this.limit,
-      },
-    });
-    return klinesResponse.data.map((kline: any) : dataBinance => ({
+        limit: this.limit
+      }
+    })
+    return klinesResponse.data.map((kline: any): dataBinance => ({
       date: kline[0],
       open: kline[1],
       high: kline[2],
@@ -32,7 +32,7 @@ export class Binance {
       count: kline[8],
       taker_buy_volume: kline[9],
       taker_buy_quote_volume: kline[10],
-      ignore: kline[11],
-    }));
+      ignore: kline[11]
+    }))
   }
 }
