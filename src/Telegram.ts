@@ -20,13 +20,14 @@ export class Telegram {
   }
 
   public run (): void {
-    this.bot.on('message', (msg) => {
+    this.bot.onText(/\/join/, (msg) => {
       const chatId = msg.chat.id
-      this.sendMessage(chatId, 'Received your message') as any
-    })
-
-    this.bot.onText(/\/join/, (msg, match) => {
-      const chatId = msg.chat.id
+      for (const id of this.chatId) {
+        if (id === chatId) {
+          this.sendMessage(chatId, 'Already joined') as any
+          return
+        }
+      }
       this.chatId.push(chatId)
       this.sendMessage(chatId, 'Joined') as any
     })
