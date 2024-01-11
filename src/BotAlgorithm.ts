@@ -40,17 +40,26 @@ export class BotAlgorithm {
     const lastRSI = technicalIndicator.calculateRSI(data.slice(0, data.length - 1), this.rsiPeriod)
     let decision: string = 'HOLD'
     const threshold = 0.001
+    const price: number = Number(data[data.length - 1].close)
+    const lastPrice = Number(data[data.length - 2].close)
+    const rsiDivergence = price > lastPrice && rsi < lastRSI
+    const smaPeriod = 20
+    const sma = technicalIndicator.calculateSMA(data.map((entry) => parseFloat(entry.close)).slice(0, data.length - 1), smaPeriod)
+    const aboveSMA = price > sma
+    const belowSMA = price < sma
 
-    if (histogram > threshold && lastHistogram < threshold && rsi > 70 && lastRSI < 70) {
+    if (
+      (histogram > threshold && lastHistogram < threshold && rsi > 70 && lastRSI < 70 && aboveSMA) ||
+        (histogram < -threshold && lastHistogram > -threshold && rsi < 30 && lastRSI > 30 && belowSMA) ||
+        rsiDivergence
+    ) {
       decision = 'SELL'
-    } else if (histogram < -threshold && lastHistogram > -threshold && rsi < 30 && lastRSI > 30) {
+    } else if (
+      (histogram < -threshold && lastHistogram > -threshold && rsi < 30 && lastRSI > 30 && aboveSMA) ||
+        (histogram > threshold && lastHistogram < threshold && rsi > 70 && lastRSI < 70 && belowSMA) ||
+        rsiDivergence
+    ) {
       decision = 'BUY'
-    } else if (lastRSI > 70 && rsi < 70) {
-      decision = 'SELL'
-    } else if (lastRSI < 30 && rsi > 30) {
-      decision = 'BUY'
-    } else {
-      decision = this.lastDecision
     }
 
     return { decision, macd }

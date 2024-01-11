@@ -53,16 +53,12 @@ export class TechnicalIndicator {
     return rsi
   }
 
-  calculateSMA (data: number[], period: number): number[] {
-    const smaValues: number[] = []
-
-    for (let i = period - 1; i < data.length; i++) {
-      const sum = data.slice(i - period + 1, i + 1).reduce((total, value) => total + value, 0)
-      const sma = sum / period
-      smaValues.push(sma)
+  calculateSMA (data: number[], period: number): number {
+    let sum = 0
+    for (let i = 0; i < period; i++) {
+      sum += data[data.length - 1 - i]
     }
-
-    return smaValues
+    return sum / period
   }
 
   calculateEMA (prices: number[], period: number): number[] {

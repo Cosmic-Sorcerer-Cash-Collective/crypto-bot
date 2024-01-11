@@ -1,173 +1,46 @@
-import TelegramBot from 'node-telegram-bot-api'
 import { Binance } from './Binance'
-import { BotAlgorithm } from './bot'
+import { Telegram } from './Telegram'
+import { BotAlgorithm } from './BotAlgorithm'
+import { botInstance } from './utils/constant'
 import { type typeInstance } from './utils/type'
 /* eslint-disable @typescript-eslint/no-var-requires */
 require('dotenv').config()
 
-const botToken = process.env.TOKEN ?? ''
-const bot = new TelegramBot(botToken, { polling: true })
+const botInstances: typeInstance[] = botInstance
+const apiTelegram = new Telegram()
+apiTelegram.run()
 
-const channel: string = process.env.CHANNEL ?? ''
-const botInstance: typeInstance[] = [
-  {
-    id: 0,
-    symbol: 'BTCUSDT',
-    interval: '1m',
-    macdShortPeriod: 12,
-    macdLongPeriod: 26,
-    macdSignalPeriod: 9,
-    rsiPeriod: 14,
-    lastDecision: ['HOLD']
-  },
-  {
-    id: 1,
-    symbol: 'ETHUSDT',
-    interval: '1m',
-    macdShortPeriod: 12,
-    macdLongPeriod: 26,
-    macdSignalPeriod: 9,
-    rsiPeriod: 14,
-    lastDecision: ['HOLD']
-  },
-  {
-    id: 2,
-    symbol: 'BNBUSDT',
-    interval: '1m',
-    macdShortPeriod: 12,
-    macdLongPeriod: 26,
-    macdSignalPeriod: 9,
-    rsiPeriod: 14,
-    lastDecision: ['HOLD']
-  },
-  {
-    id: 3,
-    symbol: 'BONKUSDT',
-    interval: '1h',
-    macdShortPeriod: 12,
-    macdLongPeriod: 26,
-    macdSignalPeriod: 9,
-    rsiPeriod: 14,
-    lastDecision: ['HOLD']
-  },
-  {
-    id: 4,
-    symbol: 'NFPUSDT',
-    interval: '1h',
-    macdShortPeriod: 12,
-    macdLongPeriod: 26,
-    macdSignalPeriod: 9,
-    rsiPeriod: 14,
-    lastDecision: ['HOLD']
-  },
-  {
-    id: 5,
-    symbol: 'DOCKUSDT',
-    interval: '1h',
-    macdShortPeriod: 12,
-    macdLongPeriod: 26,
-    macdSignalPeriod: 9,
-    rsiPeriod: 14,
-    lastDecision: ['HOLD']
-  }
-]
+async function processInstance (instance: typeInstance): Promise<void> {
+  let tmp: string = 'HOLD'
+  const binance = new Binance(instance.symbol, instance.interval, 100)
+  const data = await binance.fetchMarketData()
+  const algo = new BotAlgorithm(instance.macdShortPeriod, instance.macdLongPeriod, instance.macdSignalPeriod, instance.rsiPeriod, instance.lastDecision[instance.lastDecision.length - 1])
+  const { decision } = await algo.tradeDecision(data)
 
-async function sendMessage (message: string, chatId?: number): Promise<void> {
-  await bot.sendMessage(chatId ?? channel, message)
-}
-
-bot.onText(/\/help/, (msg) => {
-  const chatId = msg.chat.id
-
-  sendMessage(`Commandes disponibles:
-    /addinstance symbol interval macdShortPeriod macdLongPeriod macdSignalPeriod rsiPeriod
-    /removeinstance symbol
-    /listinstances
-    /help`, chatId) as any
-})
-
-bot.onText(/\/addinstance (.+) (.+)(?: (\d+)(?: (\d+)(?: (\d+)(?: (\d+))?)?)?)?/, (msg, match) => {
-  if (match === null) return
-  const chatId = msg.chat.id
-  const symbol = match[1]
-  const interval = match[2]
-  const macdShortPeriod = Number(match[3]) ?? 12
-  const macdLongPeriod = Number(match[4]) ?? 26
-  const macdSignalPeriod = Number(match[5]) ?? 9
-  const rsiPeriod = Number(match[6]) ?? 14
-
-  const instance = {
-    id: botInstance.length,
-    symbol,
-    interval,
-    macdShortPeriod,
-    macdLongPeriod,
-    macdSignalPeriod,
-    rsiPeriod,
-    lastDecision: ['HOLD']
-  }
-  botInstance.push(instance)
-  sendMessage(`Instance ajoutée: ${symbol} ${interval}`, chatId) as any
-})
-
-bot.onText(/\/removeinstance (.+)/, (msg, match) => {
-  if (match === null) return
-  const chatId = msg.chat.id
-  const symbol = match[1]
-
-  const index = botInstance.findIndex((instance) => instance.symbol === symbol)
-  if (index !== -1) {
-    botInstance.splice(index, 1)
-    sendMessage(`Instance supprimée: ${symbol}`, chatId) as any
+  if (decision === 'BUY' && instance.lastDecision.find((i) => i === 'BUY') === undefined) {
+    tmp = 'BUY'
+    await apiTelegram.sendMessageAll(`📈 BUY ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
+  } else if (decision === 'SELL' && instance.lastDecision.find((i) => i === 'SELL') === undefined) {
+    tmp = 'SELL'
+    await apiTelegram.sendMessageAll(`📉 SELL ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
   } else {
-    sendMessage(`Instance non trouvée: ${symbol}`, chatId) as any
+    tmp = 'HOLD'
   }
-})
 
-bot.onText(/\/listinstances/, (msg) => {
-  const chatId = msg.chat.id
-  if (botInstance.length === 0) {
-    sendMessage('Aucune instance', chatId) as any
-    return
+  if (instance.lastDecision.length === 10) {
+    instance.lastDecision.shift()
   }
-  let message = 'instances:\n'
-  botInstance.forEach((instance) => {
-    message += `${instance.id} ${instance.symbol} ${instance.interval} ${instance.macdShortPeriod} ${instance.macdLongPeriod} ${instance.macdSignalPeriod} ${instance.rsiPeriod}\n`
-  })
-  sendMessage(message, chatId) as any
-})
+  instance.lastDecision.push(tmp)
+}
 
 async function main (): Promise<void> {
-  let tmp: string = 'HOLD'
-  if (botInstance.length !== 0) {
-    for (const instance of botInstance) {
-      // console.log(`Instance: ${instance.symbol} ${instance.interval}`)
-      const binance = new Binance(instance.symbol, instance.interval, 100)
-      const data = await binance.fetchMarketData()
-      const algo = new BotAlgorithm(instance.macdShortPeriod, instance.macdLongPeriod, instance.macdSignalPeriod, instance.rsiPeriod, instance.lastDecision[instance.lastDecision.length - 1])
-      const { decision } = await algo.tradeDecision(data)
-      if (decision === 'BUY' && instance.lastDecision.find((i) => i === 'BUY') === undefined) {
-        tmp = 'BUY'
-        await bot.sendMessage(channel, `📈 BUY ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
-      } else if (decision === 'SELL' && instance.lastDecision.find((i) => i === 'SELL') === undefined) {
-        tmp = 'SELL'
-        await bot.sendMessage(channel, `📉 SELL ${instance.symbol} ${instance.interval}\nPrice: ${data[data.length - 1].close}`)
-      } else {
-        tmp = 'HOLD'
-      }
-      const updateInstance = botInstance.find((i) => i.id === instance.id)
-      if (updateInstance !== undefined) {
-        if (updateInstance.lastDecision.length === 10) {
-          updateInstance.lastDecision.shift()
-        }
-        updateInstance.lastDecision.push(tmp)
-      }
-      tmp = 'HOLD'
-    }
-  }
+  await Promise.all(botInstances.map(processInstance))
 }
 
-setInterval(() => {
-  main() as any
-}, 2500)
-console.log('Bot started')
+main().then(() => { console.log('Bot started') }).catch((err) => { console.log(err) })
+
+function repeatMain (): void {
+  main().then(() => setTimeout(repeatMain, 1000)).catch((err) => { console.log(err) })
+}
+
+repeatMain()
