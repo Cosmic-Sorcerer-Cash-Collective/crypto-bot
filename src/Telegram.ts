@@ -6,8 +6,8 @@ export class Telegram {
 
   constructor () {
     this.bot = new TelegramBot(process.env.TOKEN ?? '', { polling: true })
-    if (process.env.CHANNEL_ID !== undefined) {
-      this.chatId = process.env.CHANNEL_ID.split(',').map((id) => parseInt(id))
+    if (process.env.CHANNEL !== undefined) {
+      this.chatId = process.env.CHANNEL.split(',').map((id) => parseInt(id))
     }
   }
 

@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { type dataBinance } from './utils/type'
+import fs from 'fs'
+import csv from 'csv-parser'
 
 export class Binance {
   private readonly symbol: string
@@ -12,6 +14,21 @@ export class Binance {
     this.limit = limit
   }
 
+  public async fetchMarketDataOffline (filePath: string): Promise<dataBinance[]> {
+    return await new Promise<dataBinance[]>(async (resolve, reject) => {
+      const results: dataBinance[] = []
+      fs.createReadStream(filePath)
+        .pipe(csv())
+        .on('data', (data: dataBinance) => {
+          results.push(data)
+        })
+        .on('end', () => {
+          resolve(results)
+        })
+        .on('error', reject)
+    })
+  }
+
   public async fetchMarketData (): Promise<dataBinance[]> {
     const klinesResponse = await axios.get('https://api.binance.com/api/v3/klines', {
       params: {
@@ -21,7 +38,7 @@ export class Binance {
       }
     })
     return klinesResponse.data.map((kline: any): dataBinance => ({
-      date: kline[0],
+      open_time: kline[0],
       open: kline[1],
       high: kline[2],
       low: kline[3],

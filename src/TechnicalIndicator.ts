@@ -71,4 +71,13 @@ export class TechnicalIndicator {
     }
     return emaValues
   }
+
+  public isHammer (lastCandle: dataBinance, currentCandle: dataBinance): boolean {
+    const lastCandleBody = Math.abs(parseFloat(lastCandle.open) - parseFloat(lastCandle.close))
+    const lastCandleShadow = parseFloat(lastCandle.high) - parseFloat(lastCandle.low)
+    const currentCandleBody = Math.abs(parseFloat(currentCandle.open) - parseFloat(currentCandle.close))
+    const currentCandleShadow = parseFloat(currentCandle.high) - parseFloat(currentCandle.low)
+    const isHammer = currentCandleBody <= lastCandleBody && currentCandleShadow >= lastCandleShadow && parseFloat(currentCandle.close) > parseFloat(lastCandle.close)
+    return isHammer
+  }
 }

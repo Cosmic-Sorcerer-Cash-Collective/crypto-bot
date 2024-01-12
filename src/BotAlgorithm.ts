@@ -32,36 +32,27 @@ export class BotAlgorithm {
     this.rsiPeriod = rsiPeriod
   }
 
-  public async tradeDecision (data: dataBinance[]): Promise<typeTradeDecision> {
-    const technicalIndicator = new TechnicalIndicator()
-    const { histogram, macd } = technicalIndicator.calculateMACD(data, this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod)
-    const lastHistogram = technicalIndicator.calculateMACD(data.slice(0, data.length - 1), this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod).histogram
-    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod)
-    const lastRSI = technicalIndicator.calculateRSI(data.slice(0, data.length - 1), this.rsiPeriod)
-    let decision: string = 'HOLD'
-    const threshold = 0.001
-    const price: number = Number(data[data.length - 1].close)
-    const lastPrice = Number(data[data.length - 2].close)
-    const rsiDivergence = price > lastPrice && rsi < lastRSI
-    const smaPeriod = 20
-    const sma = technicalIndicator.calculateSMA(data.map((entry) => parseFloat(entry.close)).slice(0, data.length - 1), smaPeriod)
-    const aboveSMA = price > sma
-    const belowSMA = price < sma
-
-    if (
-      (histogram > threshold && lastHistogram < threshold && rsi > 70 && lastRSI < 70 && aboveSMA) ||
-        (histogram < -threshold && lastHistogram > -threshold && rsi < 30 && lastRSI > 30 && belowSMA) ||
-        rsiDivergence
-    ) {
-      decision = 'SELL'
-    } else if (
-      (histogram < -threshold && lastHistogram > -threshold && rsi < 30 && lastRSI > 30 && aboveSMA) ||
-        (histogram > threshold && lastHistogram < threshold && rsi > 70 && lastRSI < 70 && belowSMA) ||
-        rsiDivergence
-    ) {
-      decision = 'BUY'
+  public async tradeDecision(data: dataBinance[]): Promise<typeTradeDecision> {
+    const technicalIndicator = new TechnicalIndicator(); // Assurez-vous que la classe TechnicalIndicator est correctement implémentée
+  
+    // Calculer l'indicateur RSI
+    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod);
+    
+    // Identifier le motif de bougie Hammer
+    const lastCandle = data[data.length - 2];
+    const currentCandle = data[data.length - 1];
+    const isHammer: boolean = technicalIndicator.isHammer(lastCandle, currentCandle);
+  
+    // Initialiser la décision à 'HOLD'
+    let decision: string = 'HOLD';
+  
+    // Logique de prise de décision
+    if (rsi <= 30 && isHammer) {
+      decision = 'BUY'; // Conditions d'achat
+    } else if (rsi >= 70 && isHammer) {
+      decision = 'SELL'; // Conditions de vente
     }
-
-    return { decision, macd }
+  
+    return { decision, macd: 0 };
   }
 }
