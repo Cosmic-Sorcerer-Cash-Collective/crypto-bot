@@ -52,4 +52,10 @@ export class Binance {
       ignore: kline[11]
     }))
   }
+
+  public async fetchMarketExchangeInfo (): Promise<string[]> {
+    const exchangeInfoResponse = await axios.get('https://api.binance.com/api/v3/exchangeInfo')
+    const filteredSymbols = exchangeInfoResponse.data.symbols.filter((symbol: any) => symbol.quoteAsset === 'USDT')
+    return filteredSymbols.map((symbol: any) => symbol.symbol)
+  }
 }

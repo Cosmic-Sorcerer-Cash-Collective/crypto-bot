@@ -1,3 +1,7 @@
+import { Binance } from "../Binance"
+import { BotAlgorithm } from "../BotAlgorithm"
+import { TechnicalIndicator } from "../TechnicalIndicator"
+
 export interface dataBinance {
   open_time: string
   open: string
@@ -22,6 +26,9 @@ export interface typeInstance {
   macdSignalPeriod: number
   rsiPeriod: number
   lastDecision: string[]
+  binance: Binance
+  technicalIndicator: TechnicalIndicator
+  botAlgorithm: BotAlgorithm
 }
 
 export interface macdIndicator {

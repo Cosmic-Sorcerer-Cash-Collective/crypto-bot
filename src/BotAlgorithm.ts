@@ -32,27 +32,23 @@ export class BotAlgorithm {
     this.rsiPeriod = rsiPeriod
   }
 
-  public async tradeDecision(data: dataBinance[]): Promise<typeTradeDecision> {
-    const technicalIndicator = new TechnicalIndicator(); // Assurez-vous que la classe TechnicalIndicator est correctement implémentée
-  
-    // Calculer l'indicateur RSI
-    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod);
-    
-    // Identifier le motif de bougie Hammer
-    const lastCandle = data[data.length - 2];
-    const currentCandle = data[data.length - 1];
-    const isHammer: boolean = technicalIndicator.isHammer(lastCandle, currentCandle);
-  
-    // Initialiser la décision à 'HOLD'
-    let decision: string = 'HOLD';
-  
-    // Logique de prise de décision
+  public async tradeDecision (data: dataBinance[]): Promise<typeTradeDecision> {
+    const technicalIndicator = new TechnicalIndicator() // Assurez-vous que la classe TechnicalIndicator est correctement implémentée
+
+    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod)
+
+    const lastCandle = data[data.length - 2]
+    const currentCandle = data[data.length - 1]
+    const isHammer: boolean = technicalIndicator.isHammer(lastCandle, currentCandle)
+
+    let decision: string = 'HOLD'
+
     if (rsi <= 30 && isHammer) {
-      decision = 'BUY'; // Conditions d'achat
+      decision = 'BUY'
     } else if (rsi >= 70 && isHammer) {
-      decision = 'SELL'; // Conditions de vente
+      decision = 'SELL'
     }
-  
-    return { decision, macd: 0 };
+
+    return { decision, macd: 0 }
   }
 }
