@@ -16,13 +16,13 @@ async function processInstance (instance: typeInstance): Promise<void> {
   const { decision } = await instance.botAlgorithm.tradeDecision(data)
 
   if (decision === 'BUY' && !instance.lastDecision.includes('BUY')) {
-    await apiTelegram.sendMessageAll(`✅ *BUY* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+    await apiTelegram.sendMessageAll(`✅ *BUY* \n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`);
   } else if (decision === 'SELL' && !instance.lastDecision.includes('SELL')) {
-    await apiTelegram.sendMessageAll(`🛑 *SELL* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+    await apiTelegram.sendMessageAll(`🛑 *SELL* \n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`);
   } else if (decision === 'POTENTIAL_BUY' && !instance.lastDecision.includes('POTENTIAL_BUY')) {
-    await apiTelegram.sendMessageAll(`⚠️ *POTENTIAL BUY* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+    await apiTelegram.sendMessageAll(`⚠️ *POTENTIAL BUY* \n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`);
   } else if (decision === 'POTENTIAL_SELL' && !instance.lastDecision.includes('POTENTIAL_SELL')) {
-    await apiTelegram.sendMessageAll(`⚠️ *POTENTIAL SELL* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+    await apiTelegram.sendMessageAll(`⚠️ *POTENTIAL SELL* \n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`);
   }
 }
 
