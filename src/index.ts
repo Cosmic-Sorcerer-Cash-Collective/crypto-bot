@@ -15,14 +15,14 @@ async function processInstance (instance: typeInstance): Promise<void> {
   const data = await instance.binance.fetchMarketData()
   const { decision } = await instance.botAlgorithm.tradeDecision(data)
 
-  if (decision === 'BUY' && instance.lastDecision.find((i) => i === 'BUY') === undefined) {
-    await apiTelegram.sendMessageAll(`BUY Price: ${data[data.length - 1].close}`)
-  } else if (decision === 'SELL' && instance.lastDecision.find((i) => i === 'SELL') === undefined) {
-    await apiTelegram.sendMessageAll(`SELL Price: ${data[data.length - 1].close}`)
-  } else if (decision === 'POTENTIAL_BUY' && instance.lastDecision.find((i) => i === 'POTENTIAL_BUY') === undefined) {
-    console.log(`POTENTIAL_BUY Price: ${data[data.length - 1].close}`)
-  } else if (decision === 'POTENTIAL_SELL' && instance.lastDecision.find((i) => i === 'POTENTIAL_SELL') === undefined) {
-    console.log(`POTENTIAL_SELL Price: ${data[data.length - 1].close}`)
+  if (decision === 'BUY' && !instance.lastDecision.includes('BUY')) {
+    await apiTelegram.sendMessageAll(`✅ *BUY* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+  } else if (decision === 'SELL' && !instance.lastDecision.includes('SELL')) {
+    await apiTelegram.sendMessageAll(`🛑 *SELL* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+  } else if (decision === 'POTENTIAL_BUY' && !instance.lastDecision.includes('POTENTIAL_BUY')) {
+    await apiTelegram.sendMessageAll(`⚠️ *POTENTIAL BUY* ${instance.symbol} Price: ${data[data.length - 1].close}`);
+  } else if (decision === 'POTENTIAL_SELL' && !instance.lastDecision.includes('POTENTIAL_SELL')) {
+    await apiTelegram.sendMessageAll(`⚠️ *POTENTIAL SELL* ${instance.symbol} Price: ${data[data.length - 1].close}`);
   }
 }
 
