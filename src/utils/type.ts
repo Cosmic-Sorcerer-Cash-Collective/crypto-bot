@@ -1,6 +1,6 @@
-import { Binance } from "../Binance"
-import { BotAlgorithm } from "../BotAlgorithm"
-import { TechnicalIndicator } from "../TechnicalIndicator"
+import { type Binance } from '../Binance'
+import { type BotAlgorithm } from '../BotAlgorithm'
+import { type TechnicalIndicator } from '../TechnicalIndicator'
 
 export interface dataBinance {
   open_time: string
@@ -39,5 +39,4 @@ export interface macdIndicator {
 
 export interface typeTradeDecision {
   decision: string
-  macd: number
 }

@@ -12,7 +12,7 @@ export class Telegram {
   }
 
   private async sendMessage (chatId: number, message: string): Promise<void> {
-    await this.bot.sendMessage(chatId, message)
+    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' })
   }
 
   async sendMessageAll (message: string): Promise<void> {

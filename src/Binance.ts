@@ -55,7 +55,23 @@ export class Binance {
 
   public async fetchMarketExchangeInfo (): Promise<string[]> {
     const exchangeInfoResponse = await axios.get('https://api.binance.com/api/v3/exchangeInfo')
-    const filteredSymbols = exchangeInfoResponse.data.symbols.filter((symbol: any) => symbol.quoteAsset === 'USDT')
+    const filteredSymbols = exchangeInfoResponse.data.symbols.filter(
+      (symbol: any) => symbol.quoteAsset === 'USDT'
+    )
     return filteredSymbols.map((symbol: any) => symbol.symbol)
+  }
+
+  public async fetchPairVolume (symbol: string): Promise<number | null> {
+    try {
+      const ticker24hrResponse = await axios.get('https://api.binance.com/api/v3/ticker/24hr', {
+        params: {
+          symbol
+        }
+      })
+      return parseFloat(ticker24hrResponse.data.volume as string)
+    } catch (error) {
+      console.error('Erreur lors de la récupération du volume de la paire sur Binance:', error)
+      return null
+    }
   }
 }

@@ -1,5 +1,5 @@
 import { TechnicalIndicator } from './TechnicalIndicator'
-import { type typeTradeDecision, type dataBinance } from './utils/type'
+import { type typeTradeDecision, type dataBinance, type macdIndicator } from './utils/type'
 
 export class BotAlgorithm {
   private macdShortPeriod: number
@@ -33,22 +33,28 @@ export class BotAlgorithm {
   }
 
   public async tradeDecision (data: dataBinance[]): Promise<typeTradeDecision> {
-    const technicalIndicator = new TechnicalIndicator() // Assurez-vous que la classe TechnicalIndicator est correctement implémentée
-
-    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod)
-
-    const lastCandle = data[data.length - 2]
-    const currentCandle = data[data.length - 1]
-    const isHammer: boolean = technicalIndicator.isHammer(lastCandle, currentCandle)
-
+    const technicalIndicator = new TechnicalIndicator()
     let decision: string = 'HOLD'
 
-    if (rsi <= 30 && isHammer) {
+    // Calculate MACD
+    const macdData: macdIndicator = technicalIndicator.calculateMACD(data, this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod)
+
+    // MACD buy/sell condition
+    const macdBuyCondition = macdData.macd > macdData.signal && macdData.histogram > 0
+    const macdSellCondition = macdData.macd < macdData.signal && macdData.histogram < 0
+
+    // RSI condition
+    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod)
+    const rsiBuyCondition = rsi <= 30
+    const rsiSellCondition = rsi >= 70
+
+    // Decision logic
+    if (macdBuyCondition && rsiBuyCondition) {
       decision = 'BUY'
-    } else if (rsi >= 70 && isHammer) {
+    } else if (macdSellCondition && rsiSellCondition) {
       decision = 'SELL'
     }
 
-    return { decision, macd: 0 }
+    return { decision }
   }
 }
