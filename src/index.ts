@@ -6,8 +6,8 @@ import { BotAlgorithm } from './BotAlgorithm'
 /* eslint-disable @typescript-eslint/no-var-requires */
 require('dotenv').config()
 
-const botInstancesHour: typeInstance[] = []
-const botInstancesDay: typeInstance[] = []
+let botInstancesHour: typeInstance[] = []
+let botInstancesDay: typeInstance[] = []
 const binance = new Binance('BTCUSDT', '1h', 30)
 const MINIMUM_VOLUME = 1500000
 const apiTelegram = new Telegram()
@@ -66,7 +66,7 @@ async function createInstanceDay (): Promise<void> {
   )
   const filtered = highVolumePairs.filter((instance) => instance !== null)
   if (filtered != null) {
-    botInstancesDay.push(...(filtered as typeInstance[]))
+    botInstancesDay = [...(filtered as typeInstance[])]
   }
 }
 
@@ -96,7 +96,7 @@ async function createInstanceHour (): Promise<void> {
   )
   const filtered = highVolumePairs.filter((instance) => instance !== null)
   if (filtered != null) {
-    botInstancesHour.push(...(filtered as typeInstance[]))
+    botInstancesHour = [...(filtered as typeInstance[])]
   }
 }
 
