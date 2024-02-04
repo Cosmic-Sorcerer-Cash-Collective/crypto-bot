@@ -15,6 +15,6 @@ export const botInstance: typeInstance[] = [
     lastDecision: ['HOLD'],
     binance: new Binance('BTCUSDT', '1h', 30),
     technicalIndicator: new TechnicalIndicator(),
-    botAlgorithm: new BotAlgorithm(12, 26, 9, 14, 'HOLD')
+    botAlgorithm: new BotAlgorithm()
   }
 ]
