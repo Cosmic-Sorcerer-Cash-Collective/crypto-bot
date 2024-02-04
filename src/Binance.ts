@@ -15,7 +15,7 @@ export class Binance {
   }
 
   public async fetchMarketDataOffline (filePath: string): Promise<dataBinance[]> {
-    return await new Promise<dataBinance[]>(async (resolve, reject) => {
+    return await new Promise<dataBinance[]>((resolve, reject) => {
       const results: dataBinance[] = []
       fs.createReadStream(filePath)
         .pipe(csv())

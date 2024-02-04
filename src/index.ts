@@ -13,22 +13,72 @@ const MINIMUM_VOLUME = 1500000
 const apiTelegram = new Telegram()
 apiTelegram.run()
 
+// async function processInstanceOffline (): Promise<void> {
+//   const data = await binance.fetchMarketDataOffline('./data.csv')
+//   const instance = {
+//     id: 0,
+//     symbol: 'BTCUSDT',
+//     interval: '1h',
+//     macdShortPeriod: 12,
+//     macdLongPeriod: 26,
+//     macdSignalPeriod: 9,
+//     rsiPeriod: 14,
+//     lastDecision: ['HOLD'],
+//     technicalIndicator: new TechnicalIndicator(),
+//     botAlgorithm: new BotAlgorithm()
+//   }
+
+//   for (let i = 50; i < data.length; i++) {
+//     const { decision } = await instance.botAlgorithm.tradeDecision(data.slice(i - 50, i))
+//     const formatMessage = (action: string, trend: string, term: string): string => {
+//       return `
+//         ${action === 'BUY' ? '✅' : '❌'} *${action}*
+//         ${trend}: ${term} 📈
+
+//         **Symbole:** ${instance.symbol}
+//         **Price:** ${data[i].close}
+//       `
+//     }
+
+//     if (decision === 'STRONG_BUY' || decision === 'MEDIUM_BUY') {
+//       const trendType = instance.interval === '1h' ? 'court terme' : 'long terme'
+//       const actionType = decision === 'STRONG_BUY' ? 'Fort' : 'Moyenne'
+
+//       await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType))
+//     } else if (decision === 'STRONG_SELL' || decision === 'MEDIUM_SELL') {
+//       const trendType = instance.interval === '1h' ? 'court terme' : 'long terme'
+//       const actionType = decision === 'STRONG_SELL' ? 'Fort' : 'Moyenne'
+
+//       await apiTelegram.sendMessageAll(formatMessage('SELL', `${actionType} tendance`, trendType))
+//     }
+//   }
+//   console.log('Bot is finished...')
+// }
+
 async function processInstance (instance: typeInstance): Promise<void> {
   const data = await instance.binance.fetchMarketData()
   const { decision } = await instance.botAlgorithm.tradeDecision(data)
 
-  if (decision === 'BUY' && !instance.lastDecision.includes('BUY')) {
-    if (instance.interval === '1h') {
-      await apiTelegram.sendMessageAll(`✅ *BUY* court terme 📈 \n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`)
-    } else if (instance.interval === '1d') {
-      await apiTelegram.sendMessageAll(`✅ *BUY* long terme 📈\n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`)
-    }
-  } else if (decision === 'SELL' && !instance.lastDecision.includes('SELL')) {
-    if (instance.interval === '1h') {
-      await apiTelegram.sendMessageAll(`🛑 *SELL* court terme 📉 \n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`)
-    } else if (instance.interval === '1d') {
-      await apiTelegram.sendMessageAll(`🛑 *SELL* long terme 📉\n\n Symbole: ${instance.symbol}\nPrice: ${data[data.length - 1].close}`)
-    }
+  const formatMessage = (action: string, trend: string, term: string): string => {
+    return `
+${action === 'BUY' ? '✅' : '❌'} *${action}* ${action === 'BUY' ? '📈' : '📉'}
+${trend}: ${term}
+
+**Symbole:** ${instance.symbol}
+**Price:** ${data[data.length - 1].close}
+  `
+  }
+
+  if (decision === 'STRONG_BUY' || decision === 'MEDIUM_BUY') {
+    const trendType = instance.interval === '1h' ? 'court terme' : 'long terme'
+    const actionType = decision === 'STRONG_BUY' ? 'Fort' : 'Moyenne'
+
+    await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType))
+  } else if (decision === 'STRONG_SELL' || decision === 'MEDIUM_SELL') {
+    const trendType = instance.interval === '1h' ? 'court terme' : 'long terme'
+    const actionType = decision === 'STRONG_SELL' ? 'Fort' : 'Moyenne'
+
+    await apiTelegram.sendMessageAll(formatMessage('SELL', `${actionType} tendance`, trendType))
   }
 }
 
@@ -55,9 +105,9 @@ async function createInstanceDay (): Promise<void> {
           macdSignalPeriod: 9,
           rsiPeriod: 14,
           lastDecision: ['HOLD'],
-          binance: new Binance(symb, '1d', 30),
+          binance: new Binance(symb, '1d', 50),
           technicalIndicator: new TechnicalIndicator(),
-          botAlgorithm: new BotAlgorithm(12, 26, 9, 14, 'HOLD')
+          botAlgorithm: new BotAlgorithm()
         }
       } else {
         return null
@@ -66,7 +116,7 @@ async function createInstanceDay (): Promise<void> {
   )
   const filtered = highVolumePairs.filter((instance) => instance !== null)
   if (filtered != null) {
-    botInstancesDay = [...(filtered as typeInstance[])]
+    botInstancesDay = (filtered as typeInstance[])
   }
 }
 
@@ -85,9 +135,9 @@ async function createInstanceHour (): Promise<void> {
           macdSignalPeriod: 9,
           rsiPeriod: 14,
           lastDecision: ['HOLD'],
-          binance: new Binance(symb, '1h', 30),
+          binance: new Binance(symb, '1h', 50),
           technicalIndicator: new TechnicalIndicator(),
-          botAlgorithm: new BotAlgorithm(12, 26, 9, 14, 'HOLD')
+          botAlgorithm: new BotAlgorithm()
         }
       } else {
         return null
@@ -96,19 +146,31 @@ async function createInstanceHour (): Promise<void> {
   )
   const filtered = highVolumePairs.filter((instance) => instance !== null)
   if (filtered != null) {
-    botInstancesHour = [...(filtered as typeInstance[])]
+    botInstancesHour = (filtered as typeInstance[])
   }
 }
 
 createInstanceHour().catch((err) => { console.log(err) })
 createInstanceDay().catch((err) => { console.log(err) })
 console.log('Bot is running...')
-mainDay().catch((err) => { console.log(err) })
-mainHour().catch((err) => { console.log(err) })
 
-function repeatMain (): void {
-  mainHour().then(() => setTimeout(repeatMain, 20 * 60 * 1000)).catch((err) => { console.log(err) })
-  mainDay().then(() => setTimeout(repeatMain, 60 * 60 * 1000)).catch((err) => { console.log(err) })
+mainHour().catch((err) => { console.log(err) })
+mainDay().catch((err) => { console.log(err) })
+
+// function repeatMain (): void {
+//   mainHour().then(() => setTimeout(repeatMain, 60 * 1000)).catch((err) => { console.log(err) })
+//   mainDay().then(() => setTimeout(repeatMain, 60 * 60 * 1000)).catch((err) => { console.log(err) })
+//   // processInstanceOffline().catch((err) => { console.log(err) })
+// }
+
+function repeatProcessInstanceHour (): void {
+  mainHour().catch((err) => { console.log(err) })
 }
 
-repeatMain()
+function repeatProcessInstanceDay (): void {
+  mainDay().catch((err) => { console.log(err) })
+}
+
+setInterval(repeatProcessInstanceHour, 20 * 60 * 1000)
+setInterval(repeatProcessInstanceDay, 60 * 60 * 1000)
+// repeatMain()

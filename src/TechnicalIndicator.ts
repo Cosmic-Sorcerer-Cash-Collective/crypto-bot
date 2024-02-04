@@ -7,7 +7,7 @@ export class TechnicalIndicator {
     const shortEMA = this.calculateEMA(prices, shortPeriod)
     const longEMA = this.calculateEMA(prices, longPeriod)
 
-    const macdLine = this.calculateMACDLine(shortEMA, longEMA)
+    const macdLine = this.calculateMACDLine([shortEMA], [longEMA])
     const signalLine = this.calculateSignalLine(macdLine, signalPeriod)
     const histogram = this.calculateHistogram(macdLine, signalLine)
 
@@ -23,7 +23,7 @@ export class TechnicalIndicator {
   }
 
   private calculateSignalLine (macdLine: number[], signalPeriod: number): number[] {
-    return this.calculateEMA(macdLine, signalPeriod)
+    return [this.calculateEMA(macdLine, signalPeriod)]
   }
 
   private calculateHistogram (macdLine: number[], signalLine: number[]): number[] {
@@ -59,17 +59,6 @@ export class TechnicalIndicator {
       sum += data[data.length - 1 - i]
     }
     return sum / period
-  }
-
-  calculateEMA (prices: number[], period: number): number[] {
-    const k = 2 / (period + 1)
-    const emaValues: number[] = []
-    let ema = prices[0]
-    for (const price of prices) {
-      ema = (price * k) + (ema * (1 - k))
-      emaValues.push(ema)
-    }
-    return emaValues
   }
 
   public isHammer (lastCandle: dataBinance, currentCandle: dataBinance): boolean {
@@ -114,32 +103,137 @@ export class TechnicalIndicator {
     return atr
   }
 
-  calculateADX (data: dataBinance[], period: number = 14): number {
-    const atr = this.calculateATR(data, period)
-    const adxValues: number[] = []
-    const dmPlusValues: number[] = []
-    const dmMinusValues: number[] = []
-    const trValues: number[] = []
+  public calculateADX (data: dataBinance[], period: number): number {
+    const trueRange = this.calculateTrueRange(data)
+    const positiveDirectionalMovement = this.calculatePositiveDirectionalMovement(data)
+    const negativeDirectionalMovement = this.calculateNegativeDirectionalMovement(data)
+
+    const averageTrueRange = this.calculateAverage(trueRange, period)
+    const averagePositiveDirectionalMovement = this.calculateAverage(positiveDirectionalMovement, period)
+    const averageNegativeDirectionalMovement = this.calculateAverage(negativeDirectionalMovement, period)
+
+    const positiveDirectionalIndex = (averagePositiveDirectionalMovement / averageTrueRange) * 100
+    const negativeDirectionalIndex = (averageNegativeDirectionalMovement / averageTrueRange) * 100
+
+    const directionalMovementIndex = Math.abs((positiveDirectionalIndex - negativeDirectionalIndex) / (positiveDirectionalIndex + negativeDirectionalIndex)) * 100
+
+    const adx = this.calculateAverageDirectionalIndex(directionalMovementIndex, period)
+
+    return adx * 10
+  }
+
+  private calculateTrueRange (data: dataBinance[]): number[] {
+    const trueRange = []
+
     for (let i = 1; i < data.length; i++) {
       const high = parseFloat(data[i].high)
       const low = parseFloat(data[i].low)
-      const high2 = parseFloat(data[i - 1].high)
-      const low2 = parseFloat(data[i - 1].low)
-      const dmPlus = high - high2 > low2 - low ? Math.max(high - high2, 0) : 0
-      const dmMinus = low2 - low > high - high2 ? Math.max(low2 - low, 0) : 0
-      const tr = Math.max(high - low, Math.abs(high - high2), Math.abs(low - low2))
-      dmPlusValues.push(dmPlus)
-      dmMinusValues.push(dmMinus)
-      trValues.push(tr)
+      const close = parseFloat(data[i - 1].close)
+
+      const method1 = high - low
+      const method2 = Math.abs(high - close)
+      const method3 = Math.abs(low - close)
+
+      trueRange.push(Math.max(method1, method2, method3))
     }
-    const diPlus = this.calculateEMA(dmPlusValues, period).map((value) => (value / atr) * 100)
-    const diMinus = this.calculateEMA(dmMinusValues, period).map((value) => (value / atr) * 100)
-    for (let i = 0; i < diPlus.length; i++) {
-      const adx = Math.abs(diPlus[i] - diMinus[i]) / (diPlus[i] + diMinus[i]) * 100
-      adxValues.push(adx)
+
+    return trueRange
+  }
+
+  private calculatePositiveDirectionalMovement (data: dataBinance[]): number[] {
+    const positiveDirectionalMovement = []
+
+    for (let i = 1; i < data.length; i++) {
+      const high = parseFloat(data[i].high)
+      const highPrev = parseFloat(data[i - 1].high)
+      const low = parseFloat(data[i].low)
+      const lowPrev = parseFloat(data[i - 1].low)
+
+      const moveUp = Math.max(high - highPrev, 0)
+      const moveDown = Math.max(lowPrev - low, 0)
+
+      positiveDirectionalMovement.push(moveUp > moveDown ? moveUp : 0)
     }
-    const adx = this.calculateEMA(adxValues, period)
-    return adx[adx.length - 1]
+
+    return positiveDirectionalMovement
+  }
+
+  private calculateNegativeDirectionalMovement (data: dataBinance[]): number[] {
+    const negativeDirectionalMovement = []
+
+    for (let i = 1; i < data.length; i++) {
+      const high = parseFloat(data[i].high)
+      const highPrev = parseFloat(data[i - 1].high)
+      const low = parseFloat(data[i].low)
+      const lowPrev = parseFloat(data[i - 1].low)
+
+      const moveUp = Math.max(high - highPrev, 0)
+      const moveDown = Math.max(lowPrev - low, 0)
+
+      negativeDirectionalMovement.push(moveDown > moveUp ? moveDown : 0)
+    }
+
+    return negativeDirectionalMovement
+  }
+
+  private calculateAverage (values: number[], period: number): number {
+    const sum = values.slice(0, period).reduce((acc, val) => acc + val, 0)
+    return sum / period
+  }
+
+  private calculateAverageDirectionalIndex (directionalMovementIndex: number, period: number): number {
+    // Smooth the DX with an exponential moving average
+    return this.calculateEMA([directionalMovementIndex], period)
+  }
+
+  private calculateEMA (values: number[], period: number): number {
+    const smoothing = 2 / (period + 1)
+
+    let ema = values.slice(0, period).reduce((acc, val) => acc + val, 0) / period
+
+    for (let i = period; i < values.length; i++) {
+      ema = (values[i] - ema) * smoothing + ema
+    }
+
+    return ema
+  }
+
+  public calculateMAs (data: dataBinance[], periods: number[]): number[][] {
+    const maValues: number[][] = []
+
+    for (const period of periods) {
+      let sum = 0
+      const maArray: number[] = []
+
+      for (let i = 0; i < data.length; i++) {
+        const closePrice = parseFloat(data[i].close)
+
+        sum += closePrice
+
+        if (i >= period) {
+          sum -= parseFloat(data[i - period].close)
+          maArray.unshift(sum / period)
+        } else {
+          maArray.unshift(sum / (i + 1))
+        }
+      }
+
+      maValues.push(maArray)
+    }
+
+    return maValues
+  }
+
+  private calculateMA (prices: number[], period: number): number[] {
+    const maValues = []
+
+    for (let i = period - 1; i < prices.length; i++) {
+      const sum = prices.slice(i - period + 1, i + 1).reduce((acc, price) => acc + price, 0)
+      const ma = sum / period
+      maValues.push(ma)
+    }
+
+    return maValues
   }
 
   calculateStochastic (data: dataBinance[], period: number = 14): number {
@@ -156,22 +250,25 @@ export class TechnicalIndicator {
     return stochastic
   }
 
-  calculateOBV (data: dataBinance[]): number {
-    const obvValues: number[] = []
+  public calculateOBV (data: dataBinance[]): number[] {
+    const obvValues: number[] = [0]
+
     for (let i = 1; i < data.length; i++) {
-      const close = parseFloat(data[i].close)
-      const close2 = parseFloat(data[i - 1].close)
-      const volume = parseFloat(data[i].volume)
-      let obv = 0
-      if (close > close2) {
-        obv = volume
-      } else if (close < close2) {
-        obv = -volume
+      const currentClose = parseFloat(data[i].close)
+      const previousClose = parseFloat(data[i - 1].close)
+
+      let obv = obvValues[i - 1]
+
+      if (currentClose > previousClose) {
+        obv += parseFloat(data[i].volume)
+      } else if (currentClose < previousClose) {
+        obv -= parseFloat(data[i].volume)
       }
+
       obvValues.push(obv)
     }
-    const obv = this.calculateSMA(obvValues, 20)
-    return obv
+
+    return obvValues
   }
 
   calculateMFI (data: dataBinance[], period: number = 14): number {
@@ -306,47 +403,62 @@ export class TechnicalIndicator {
     return { upper: [upper], lower: [lower] }
   }
 
-  calculateParabolicSAR (data: dataBinance[], period: number = 20): number {
-    const prices = data.map((entry) => parseFloat(entry.close))
-    const sarValues: number[] = []
-    let af = 0.02
-    let sar = prices[0]
-    let trend = 'bullish'
-    for (let i = 1; i < prices.length; i++) {
-      const price = prices[i]
-      const price2 = prices[i - 1]
-      if (trend === 'bullish') {
-        if (price < sar) {
-          trend = 'bearish'
-          sar = prices[i - 1]
-          af = 0.02
-        } else {
-          sar = sar + af * (price - sar)
-          if (price > price2) {
-            af += 0.02
-            if (af > 0.2) {
-              af = 0.2
-            }
-          }
-        }
+  public calculateAwesomeOscillator (data: dataBinance[]): number[] {
+    const aoValues: number[] = []
+
+    const medianPrices: number[] = data.map(entry => (parseFloat(entry.high) + parseFloat(entry.low)) / 2)
+
+    for (let i = 0; i < medianPrices.length; i++) {
+      if (i >= 34) {
+        const shortSMA = this.calculateSMA(medianPrices.slice(i - 4, i + 1), 5)
+        const longSMA = this.calculateSMA(medianPrices.slice(i - 33, i + 1), 34)
+
+        const ao = shortSMA - longSMA
+        aoValues.push(ao)
       } else {
-        if (price > sar) {
-          trend = 'bullish'
-          sar = prices[i - 1]
-          af = 0.02
-        } else {
-          sar = sar + af * (price - sar)
-          if (price < price2) {
-            af += 0.02
-            if (af > 0.2) {
-              af = 0.2
-            }
-          }
-        }
+        aoValues.push(0)
       }
-      sarValues.push(sar)
     }
-    return sarValues[sarValues.length - 1]
+
+    return aoValues
+  }
+
+  public calculateParabolicSAR (data: dataBinance[]): number[] {
+    const sarValues: number[] = []
+
+    let af = 0.02
+    let ep = parseFloat(data[data.length - 1].low)
+    let sar = ep + af * (parseFloat(data[data.length - 2].high) - ep)
+
+    sarValues.unshift(sar)
+
+    for (let i = data.length - 3; i >= 0; i--) {
+      const currentHigh = parseFloat(data[i].high)
+      const currentLow = parseFloat(data[i].low)
+
+      if (sar <= currentHigh && sar >= currentLow) {
+        sarValues.unshift(sar)
+      } else {
+        sar = ep + af * (sar - ep)
+
+        if (sar > currentHigh) {
+          sar = currentHigh
+        } else if (sar < currentLow) {
+          sar = currentLow
+        }
+
+        if (sar > parseFloat(data[i + 1].high) || sar > parseFloat(data[i + 2].high)) {
+          sar = parseFloat(data[i + 1].high)
+        }
+
+        ep = currentLow < parseFloat(data[i + 1].low) ? currentLow : parseFloat(data[i + 1].low)
+        af = af < 0.2 ? af + 0.02 : af
+
+        sarValues.unshift(sar)
+      }
+    }
+
+    return sarValues
   }
 
   public calculateAMA (data: dataBinance[], period: number = 9): number {
@@ -392,20 +504,6 @@ export class TechnicalIndicator {
     return vptValues[vptValues.length - 1]
   }
 
-  public calculatePZO (data: dataBinance[], period: number = 20): number {
-    const prices = data.map((entry) => parseFloat(entry.close))
-    const pzoValues: number[] = []
-    const ema = this.calculateEMA(prices, period)
-    for (let i = 0; i < prices.length; i++) {
-      const price = prices[i]
-      const emaValue = ema[i]
-      const pzo = 100 * ((price - emaValue) / emaValue)
-      pzoValues.push(pzo)
-    }
-    const pzo = this.calculateSMA(pzoValues, 3)
-    return pzo
-  }
-
   public calculateFI (data: dataBinance[], period: number = 13): number {
     const prices = data.map((entry) => parseFloat(entry.close))
     const volumes = data.map((entry) => parseFloat(entry.volume))
@@ -447,22 +545,6 @@ export class TechnicalIndicator {
     return vfi
   }
 
-  public calculateVZO (data: dataBinance[], period: number = 14): number {
-    const prices = data.map((entry) => parseFloat(entry.close))
-    const volumes = data.map((entry) => parseFloat(entry.volume))
-    const vzoValues: number[] = []
-    const ema = this.calculateEMA(prices, period)
-    for (let i = 0; i < prices.length; i++) {
-      const price = prices[i]
-      const emaValue = ema[i]
-      const volume = volumes[i]
-      const vzo = 100 * ((price - emaValue) / emaValue) * volume
-      vzoValues.push(vzo)
-    }
-    const vzo = this.calculateSMA(vzoValues, 3)
-    return vzo
-  }
-
   public calculateHeikinAshi (data: dataBinance[]): { open: number[], high: number[], low: number[], close: number[] } {
     const open = []
     const high = []
@@ -486,5 +568,49 @@ export class TechnicalIndicator {
       close.push(haClose)
     }
     return { open, high, low, close }
+  }
+
+  public calculatePriceVsMACDDivergence (data: dataBinance[]): number {
+    const macdData = this.calculateMACD(data)
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const macd = macdData.macd
+    const priceVsMacdDivergence = prices[prices.length - 1] - macd
+    return priceVsMacdDivergence
+  }
+
+  public calculatePriceVsMACDConvergence (data: dataBinance[]): number {
+    const macdData = this.calculateMACD(data)
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const macd = macdData.macd
+    const priceVsMacdConvergence = prices[prices.length - 1] - macd
+    return priceVsMacdConvergence
+  }
+
+  public isPriceAboveSMA (data: dataBinance[], period: number): boolean {
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const sma = this.calculateSMA(prices, period)
+    const isPriceAboveSMA = prices[prices.length - 1] > sma
+    return isPriceAboveSMA
+  }
+
+  public isPriceBelowSMA (data: dataBinance[], period: number): boolean {
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const sma = this.calculateSMA(prices, period)
+    const isPriceBelowSMA = prices[prices.length - 1] < sma
+    return isPriceBelowSMA
+  }
+
+  public hasRecentPriceIncrease (data: dataBinance[], period: number): boolean {
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const priceDiff = prices[prices.length - 1] - prices[prices.length - period - 1]
+    const hasRecentPriceIncrease = priceDiff > 0
+    return hasRecentPriceIncrease
+  }
+
+  public hasRecentPriceDecrease (data: dataBinance[], period: number): boolean {
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const priceDiff = prices[prices.length - 1] - prices[prices.length - period - 1]
+    const hasRecentPriceDecrease = priceDiff < 0
+    return hasRecentPriceDecrease
   }
 }

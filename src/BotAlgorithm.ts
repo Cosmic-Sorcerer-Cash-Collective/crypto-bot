@@ -1,58 +1,67 @@
 import { TechnicalIndicator } from './TechnicalIndicator'
-import { type typeTradeDecision, type dataBinance, type macdIndicator } from './utils/type'
+import { type typeTradeDecision, type dataBinance } from './utils/type'
 
 export class BotAlgorithm {
-  private macdShortPeriod: number
-  private macdLongPeriod: number
-  private macdSignalPeriod: number
-  private rsiPeriod: number
-  private readonly lastDecision: string
-
-  constructor (macdShortPeriod: number, macdLongPeriod: number, macdSignalPeriod: number, rsiPeriod: number, lastDecision: string) {
-    this.macdShortPeriod = macdShortPeriod
-    this.macdLongPeriod = macdLongPeriod
-    this.macdSignalPeriod = macdSignalPeriod
-    this.rsiPeriod = rsiPeriod
-    this.lastDecision = lastDecision
-  }
-
-  public setMacdShortPeriod (macdShortPeriod: number): void {
-    this.macdShortPeriod = macdShortPeriod
-  }
-
-  public setMacdLongPeriod (macdLongPeriod: number): void {
-    this.macdLongPeriod = macdLongPeriod
-  }
-
-  public setMacdSignalPeriod (macdSignalPeriod: number): void {
-    this.macdSignalPeriod = macdSignalPeriod
-  }
-
-  public setRsiPeriod (rsiPeriod: number): void {
-    this.rsiPeriod = rsiPeriod
-  }
-
   public async tradeDecision (data: dataBinance[]): Promise<typeTradeDecision> {
     const technicalIndicator = new TechnicalIndicator()
     let decision: string = 'HOLD'
 
-    // Calculate MACD
-    const macdData: macdIndicator = technicalIndicator.calculateMACD(data, this.macdShortPeriod, this.macdLongPeriod, this.macdSignalPeriod)
+    const adx = technicalIndicator.calculateADX(data, 14)
+    const rsi = technicalIndicator.calculateRSI(data, 14)
+    const mas = technicalIndicator.calculateMAs(data, [9, 21, 50])
+    const obv = technicalIndicator.calculateOBV(data)
+    const awesomeOscillator = technicalIndicator.calculateAwesomeOscillator(data)
+    const sar = technicalIndicator.calculateParabolicSAR(data)
 
-    // MACD buy/sell condition
-    const macdBuyCondition = macdData.macd > macdData.signal && macdData.histogram > 0
-    const macdSellCondition = macdData.macd < macdData.signal && macdData.histogram < 0
+    const obvValue = obv[obv.length - 1]
+    const awesomeOscillatorValue = awesomeOscillator[awesomeOscillator.length - 1]
+    const closePrice = parseFloat(data[data.length - 1].close)
+    const firstValueMA = mas[0][0]
+    const secondValueMA = mas[1][0]
+    const sarValue = sar[sar.length - 1]
 
-    // RSI condition
-    const rsi = technicalIndicator.calculateRSI(data, this.rsiPeriod)
-    const rsiBuyCondition = rsi <= 30
-    const rsiSellCondition = rsi >= 70
+    const strongBuyConditions =
+      adx > 30 &&
+      rsi < 30 &&
+      firstValueMA > secondValueMA &&
+      obvValue > 0 &&
+      awesomeOscillatorValue > 0 &&
+      sarValue < closePrice
 
-    // Decision logic
-    if (macdBuyCondition && rsiBuyCondition) {
-      decision = 'BUY'
-    } else if (macdSellCondition && rsiSellCondition) {
-      decision = 'SELL'
+    const mediumBuyConditions =
+      adx > 20 &&
+      rsi < 40 &&
+      firstValueMA > secondValueMA &&
+      obvValue > 0 &&
+      awesomeOscillatorValue > 0
+
+    const strongSellConditions =
+      adx > 30 &&
+      rsi > 70 &&
+      firstValueMA < secondValueMA &&
+      obvValue < 0 &&
+      awesomeOscillatorValue < 0 &&
+      sarValue > closePrice
+
+    const mediumSellConditions =
+      adx > 20 &&
+      rsi > 60 &&
+      firstValueMA < secondValueMA &&
+      obvValue < 0 &&
+      awesomeOscillatorValue < 0
+
+    if (strongBuyConditions) {
+      console.log('STRONG_BUY')
+      decision = 'STRONG_BUY'
+    } else if (mediumBuyConditions) {
+      console.log('MEDIUM_BUY')
+      decision = 'MEDIUM_BUY'
+    } else if (strongSellConditions) {
+      console.log('STRONG_SELL')
+      decision = 'STRONG_SELL'
+    } else if (mediumSellConditions) {
+      console.log('MEDIUM_SELL')
+      decision = 'MEDIUM_SELL'
     }
 
     return { decision }
