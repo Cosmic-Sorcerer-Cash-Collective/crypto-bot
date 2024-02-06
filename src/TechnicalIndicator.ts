@@ -613,4 +613,35 @@ export class TechnicalIndicator {
     const hasRecentPriceDecrease = priceDiff < 0
     return hasRecentPriceDecrease
   }
+
+  public calculateGoldenCross (data: dataBinance[], shortPeriod: number = 50, longPeriod: number = 200): boolean {
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const shortSMA = this.calculateSMA(prices, shortPeriod)
+    const longSMA = this.calculateSMA(prices, longPeriod)
+    const goldenCross = shortSMA > longSMA
+    return goldenCross
+  }
+
+  public calculateDeathCross (data: dataBinance[], shortPeriod: number = 50, longPeriod: number = 200): boolean {
+    const prices = data.map((entry) => parseFloat(entry.close))
+    const shortSMA = this.calculateSMA(prices, shortPeriod)
+    const longSMA = this.calculateSMA(prices, longPeriod)
+    const deathCross = shortSMA < longSMA
+    return deathCross
+  }
+
+  public calculateVolatility (data: dataBinance[], period: number): number[] {
+    const volatility: number[] = []
+
+    for (let i = data.length - 1 - period; i < data.length; i++) {
+      let sum = 0
+      for (let j = i - period; j < i; j++) {
+        sum += Math.abs(parseFloat(data[j].close) - parseFloat(data[j - 1].close))
+      }
+      const volatilityValue = sum / period
+      volatility.push(volatilityValue)
+    }
+
+    return volatility
+  }
 }

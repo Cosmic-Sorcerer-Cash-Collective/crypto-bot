@@ -51,16 +51,12 @@ export class BotAlgorithm {
       awesomeOscillatorValue < 0
 
     if (strongBuyConditions) {
-      console.log('STRONG_BUY')
       decision = 'STRONG_BUY'
     } else if (mediumBuyConditions) {
-      console.log('MEDIUM_BUY')
       decision = 'MEDIUM_BUY'
     } else if (strongSellConditions) {
-      console.log('STRONG_SELL')
       decision = 'STRONG_SELL'
     } else if (mediumSellConditions) {
-      console.log('MEDIUM_SELL')
       decision = 'MEDIUM_SELL'
     }
 

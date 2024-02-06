@@ -4,3 +4,31 @@ services:
     build: .
     volumes:
       - ./output/:/app/output/
+    depends_on:
+      - databasepostgres
+    environment:
+      USER: postgres
+      PASSWORD: postgres
+      DB: bot
+      HOST: databasepostgres
+
+  databasepostgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bot
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database.sql:/docker-entrypoint-initdb.d/database.sql
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: toto@tata.com
+      PGADMIN_DEFAULT_PASSWORD: tata
+    ports:
+      - "5050:80"
+    depends_on:
+      - databasepostgres
