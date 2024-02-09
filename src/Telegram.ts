@@ -22,7 +22,11 @@ export class Telegram {
   }
 
   async sendMessageAll (message: string): Promise<void> {
-    this.chatId.forEach((id) => this.sendMessage(id, message) as any)
+    try {
+      this.chatId.forEach((id) => this.sendMessage(id, message) as any)
+    } catch (err) {
+      console.log(err)
+    }
   }
 
   async getBigCandle (): Promise<void> {
