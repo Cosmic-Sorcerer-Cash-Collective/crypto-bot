@@ -1,172 +1,206 @@
-import TelegramBot from 'node-telegram-bot-api';
-import { Binance } from './binance';
-import { BotInstance } from './bot';
-require('dotenv').config();
+import { Binance } from './Binance'
+import { Telegram } from './Telegram'
+import { type typeInstance } from './utils/type'
+import { TechnicalIndicator } from './TechnicalIndicator'
+import { BotAlgorithm } from './BotAlgorithm'
+import { Postgres } from './database/Postgres'
+/* eslint-disable @typescript-eslint/no-var-requires */
+require('dotenv').config()
 
-const botToken = process.env.TOKEN || '';
-const bot = new TelegramBot(botToken, { polling: true });
-// TODO: change this path
-const botInstances = [
-    new BotInstance('../bot-ts/log/logs_2023-11-18T19-46-23-152Z.txt', 'BotInstance1'),
-    // Ajoutez d'autres instances selon vos besoins
-];
-const instances: { [key: string]: Binance } = {};
-const channel: string = process.env.CHANNEL || '';
+let botInstancesHour: typeInstance[] = []
+let botInstancesDay: typeInstance[] = []
+let botInstancesMinute: typeInstance[] = []
+const binance = new Binance('BTCUSDT', '1h', 30)
+const MINIMUM_VOLUME = 1500000
+const database = new Postgres()
+const apiTelegram = new Telegram(binance, database)
+apiTelegram.run()
+database.connect().catch((err) => { console.log(err) })
 
-instances['BTCUSDT'] = new Binance('BTCUSDT', '1h');
+async function processInstance (instance: typeInstance): Promise<void> {
+  const data = await instance.binance.fetchMarketData()
+  const { decision } = await instance.botAlgorithm.tradeDecision(data)
+  const closePrice = parseFloat(data[data.length - 1].close)
 
-bot.onText(/\/addinstance (.+) (.+)/, (msg, match) => {
-    const chatId = msg.chat.id;
+  const formatMessage = (action: string, trend: string, term: string, recommendation?: string, amount?: number, duration?: string): string => {
+    let message = `
+${action === 'BUY' ? '✅' : '❌'} *${action}* ${action === 'BUY' ? '📈' : '📉'}
+${trend}: ${term}
 
-    if (match && match[1] && match[2]) {
-        const symbolToAdd = match[1];
-        const intervalToAdd = match[2];
-
-        if (instances[symbolToAdd]) {
-            bot.sendMessage(chatId, `Une instance avec le symbole ${symbolToAdd} existe déjà.`);
-        } else {
-            instances[symbolToAdd] = new Binance(symbolToAdd, intervalToAdd);
-            bot.sendMessage(chatId, `Instance ajoutée avec le symbole ${symbolToAdd} et l'intervalle ${intervalToAdd}.`);
-        }
-    } else {
-        bot.sendMessage(chatId, 'Veuillez fournir un symbole et un intervalle avec la commande /addinstance.');
+**Symbole:** ${instance.symbol}
+**Price:** ${data[data.length - 1].close}
+    `
+    if (recommendation != null && amount != null && duration != null) {
+      message += `
+**Recommandation:** ${recommendation}
+**Montant suggéré:** ${amount.toFixed(2)}%
+**Durée suggérée:** ${duration}
+      `
     }
-});
+    return message
+  }
 
-bot.onText(/\/removeinstance (.+)/, (msg, match) => {
-    const chatId = msg.chat.id;
+  if (decision === 'STRONG_BUY' || decision === 'MEDIUM_BUY') {
+    const trendType = instance.interval === '1h' ? 'moyen terme' : instance.interval === '1d' ? 'long terme' : 'court terme'
+    const actionType = decision === 'STRONG_BUY' ? 'Fort' : 'Moyenne'
 
-    if (match && match[1]) {
-        const symbolToRemove = match[1];
-
-        if (instances[symbolToRemove]) {
-            delete instances[symbolToRemove];
-            bot.sendMessage(chatId, `Instance avec le symbole ${symbolToRemove} supprimée.`);
-        } else {
-            bot.sendMessage(chatId, `Aucune instance avec le symbole ${symbolToRemove} n'existe.`);
-        }
-    } else {
-        bot.sendMessage(chatId, 'Veuillez fournir un symbole avec la commande /removeinstance.');
+    let recommendation = ''
+    let amount = 0
+    let duration = ''
+    if (decision === 'STRONG_BUY') {
+      recommendation = 'Achat fortement recommandé'
+      amount = 50
+      duration = 'quelques heures à quelques jours'
+    } else if (decision === 'MEDIUM_BUY') {
+      recommendation = 'Achat modérément recommandé'
+      amount = 25
+      duration = 'quelques jours à quelques semaines'
     }
-});
 
-bot.onText(/\/listinstances/, (msg) => {
-    const chatId = msg.chat.id;
+    await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType, recommendation, amount, duration))
 
-    if (Object.keys(instances).length > 0) {
-        let message = 'Instances disponibles:\n';
-        Object.keys(instances).forEach((symbol) => {
-            message += `${symbol} - ${instances[symbol].getInterval()}\n`;
-        });
-        bot.sendMessage(chatId, message);
-    } else {
-        bot.sendMessage(chatId, 'Aucune instance n\'a été ajoutée.');
+    const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}' AND candle_time = '${instance.interval}'`).catch((err) => { console.log(err) })
+    if (result.length === 0) {
+      await database.insert(`INSERT INTO crypto (pair, close_price, candle_time) VALUES ('${instance.symbol}', ${closePrice}, '${instance.interval}')`).catch((err) => { console.log(err) })
     }
-});
-
-bot.onText(/\/help/, (msg) => {
-    const chatId = msg.chat.id;
-
-    bot.sendMessage(chatId, `Commandes disponibles:
-    /addinstance [symbol] [interval]
-    /removeinstance [symbol]
-    /listinstances
-    /bilan
-    /help`);
-});
-
-function checkAndSendMessage(): void {
-    Object.values(instances).forEach(async (binanceInstance) => {
-        const message = await binanceInstance.run();
-        if (message) {
-            bot.sendMessage(channel, message);
-        }
-    });
+  } else if (decision === 'STRONG_SELL' || decision === 'MEDIUM_SELL') {
+    const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
+    if (result.length > 0) {
+      const price = result[result.length - 1].close_price
+      const profit = ((closePrice - price) / price) * 100
+      await apiTelegram.sendMessageAll(`
+📉 *SELL* 📉
+**Symbole:** ${instance.symbol}
+**Price:** ${data[data.length - 1].close}
+**Profit:** ${profit.toFixed(2)}%
+      `)
+      database.delete(`DELETE FROM crypto WHERE pair = '${instance.symbol}' AND candle_time = '${instance.interval}'`).catch((err) => { console.log(err) })
+    }
+  }
 }
 
-bot.onText(/\/bilan/, (msg) => {
-    const chatId = msg.chat.id;
-
-    botInstances.forEach((instance) => {
-        const message = instance.analyzeLogs();
-    const profitsByDay = message.profitsByDay;
-    const profitsByMonth = message.profitsByMonth;
-    const profitsByYear = message.profitsByYear;
-
-    let summaryMessage = `Bilan de l'instance ${instance.getInstanceName()} :\n\n`;
-
-    // Profits par jour
-    if (profitsByDay.length > 0) {
-        const lastDay = profitsByDay[profitsByDay.length - 1];
-        const lastDayDate = new Date(lastDay[0]);
-        const today = new Date();
-
-        if (lastDayDate.getDate() === today.getDate()) {
-            summaryMessage += `Profit du jour : ${lastDay[1].toFixed(3)}%\n`;
-        } else {
-            const yesterday = new Date(today);
-            yesterday.setDate(today.getDate() - 1);
-
-            const yesterdayFormatted = `${yesterday.getFullYear()}-${yesterday.getMonth() + 1}-${yesterday.getDate()}`;
-            const profitYesterday = profitsByDay.find(([date]) => date === yesterdayFormatted);
-
-            if (profitYesterday) {
-                summaryMessage += `Profit du ${yesterdayFormatted} : ${profitYesterday[1].toFixed(3)}%\n`;
-            } else {
-                summaryMessage += 'Aucun profit hier.\n';
-            }
-        }
-    } else {
-        summaryMessage += 'Aucun profit aujourd\'hui.\n';
-    }
-
-    // Profits par mois
-    if (profitsByMonth.length > 0) {
-        const lastMonth = profitsByMonth[profitsByMonth.length - 1];
-
-        summaryMessage += `Profit du mois en cours : ${lastMonth[1].toFixed(3)}%\n`;
-    } else {
-        summaryMessage += 'Aucun profit ce mois-ci.\n';
-    }
-
-    // Profits par année
-    if (profitsByYear.length > 0) {
-        const lastYear = profitsByYear[profitsByYear.length - 1];
-
-        summaryMessage += `Profit de l'année en cours : ${lastYear[1].toFixed(3)}%\n`;
-    } else {
-        summaryMessage += 'Aucun profit cette année.\n';
-    }
-
-    // Envoyer le message récapitulatif
-    bot.sendMessage(chatId, summaryMessage);
-    });
-});
-
-
-function sendDailyProfitSummary() {
-    const today = new Date();
-
-    if (today.getHours() === 10 && today.getMinutes() === 0) {
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-
-        const yesterdayFormatted = `${yesterday.getFullYear()}-${yesterday.getMonth() + 1}-${yesterday.getDate()}`;
-        botInstances.forEach((instance) => {
-        const profitYesterday = instance.analyzeLogs().profitsByDay.find(([date]) => date === yesterdayFormatted);
-
-        if (profitYesterday) {
-            const profitMessage = `Bénéfice de la journée d'hier ${profitYesterday[1].toFixed(3)}% pour l'instance ${instance.getInstanceName()}.`;
-            bot.sendMessage(channel, profitMessage);
-        } else {
-            const profitMessage = `Aucun bénéfice hier pour l'instance ${instance.getInstanceName()}.`;
-            bot.sendMessage(channel, profitMessage);
-        }
-        });
-    }
+async function mainMinute (): Promise<void> {
+  await Promise.all(botInstancesMinute.map(processInstance))
 }
 
-setInterval(sendDailyProfitSummary, 60000);
-setInterval(checkAndSendMessage, 1000);
+async function mainDay (): Promise<void> {
+  await Promise.all(botInstancesDay.map(processInstance))
+}
 
-console.log('Bot started');
+async function mainHour (): Promise<void> {
+  await Promise.all(botInstancesHour.map(processInstance))
+}
+
+async function createInstanceDay (): Promise<void> {
+  const getSymb: string[] = await binance.fetchMarketExchangeInfo()
+  const highVolumePairs = await Promise.all(
+    getSymb.map(async (symb: string, index: number) => {
+      const volume = await binance.fetchPairVolume(symb)
+      if (volume != null && volume >= MINIMUM_VOLUME) {
+        return {
+          id: index,
+          symbol: symb,
+          interval: '1d',
+          macdShortPeriod: 12,
+          macdLongPeriod: 26,
+          macdSignalPeriod: 9,
+          rsiPeriod: 14,
+          lastDecision: ['HOLD'],
+          binance: new Binance(symb, '1d', 50),
+          technicalIndicator: new TechnicalIndicator(),
+          botAlgorithm: new BotAlgorithm()
+        }
+      } else {
+        return null
+      }
+    })
+  )
+  const filtered = highVolumePairs.filter((instance) => instance !== null)
+  if (filtered != null) {
+    botInstancesDay = (filtered as typeInstance[])
+  }
+}
+
+async function createInstanceHour (): Promise<void> {
+  const getSymb: string[] = await binance.fetchMarketExchangeInfo()
+  const highVolumePairs = await Promise.all(
+    getSymb.map(async (symb: string, index: number) => {
+      const volume = await binance.fetchPairVolume(symb)
+      if (volume != null && volume >= MINIMUM_VOLUME) {
+        return {
+          id: index,
+          symbol: symb,
+          interval: '1h',
+          macdShortPeriod: 12,
+          macdLongPeriod: 26,
+          macdSignalPeriod: 9,
+          rsiPeriod: 14,
+          lastDecision: ['HOLD'],
+          binance: new Binance(symb, '1h', 50),
+          technicalIndicator: new TechnicalIndicator(),
+          botAlgorithm: new BotAlgorithm()
+        }
+      } else {
+        return null
+      }
+    })
+  )
+  const filtered = highVolumePairs.filter((instance) => instance !== null)
+  if (filtered != null) {
+    botInstancesHour = (filtered as typeInstance[])
+  }
+}
+
+async function createInstanceMinute (): Promise<void> {
+  const getSymb: string[] = await binance.fetchMarketExchangeInfo()
+  const highVolumePairs = await Promise.all(
+    getSymb.map(async (symb: string, index: number) => {
+      const volume = await binance.fetchPairVolume(symb)
+      if (volume != null && volume >= MINIMUM_VOLUME) {
+        return {
+          id: index,
+          symbol: symb,
+          interval: '5m',
+          macdShortPeriod: 12,
+          macdLongPeriod: 26,
+          macdSignalPeriod: 9,
+          rsiPeriod: 14,
+          lastDecision: ['HOLD'],
+          binance: new Binance(symb, '5m', 50),
+          technicalIndicator: new TechnicalIndicator(),
+          botAlgorithm: new BotAlgorithm()
+        }
+      } else {
+        return null
+      }
+    })
+  )
+  const filtered = highVolumePairs.filter((instance) => instance !== null)
+  if (filtered != null) {
+    botInstancesMinute = (filtered as typeInstance[])
+  }
+}
+
+createInstanceMinute().catch((err) => { console.log(err) })
+createInstanceHour().catch((err) => { console.log(err) })
+createInstanceDay().catch((err) => { console.log(err) })
+console.log('Bot is running...')
+
+mainHour().catch((err) => { console.log(err) })
+mainDay().catch((err) => { console.log(err) })
+
+function repeatProcessInstanceHour (): void {
+  mainHour().catch((err) => { console.log(err) })
+}
+
+function repeatProcessInstanceDay (): void {
+  mainDay().catch((err) => { console.log(err) })
+}
+
+function repeatProcessInstanceMinute (): void {
+  mainMinute().catch((err) => { console.log(err) })
+}
+
+setInterval(repeatProcessInstanceHour, 20 * 60 * 1000)
+setInterval(repeatProcessInstanceDay, 60 * 60 * 1000)
+setInterval(repeatProcessInstanceMinute, 2.5 * 60 * 1000)
