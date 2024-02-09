@@ -26,36 +26,65 @@ export class Telegram {
   }
 
   async getBigCandle (): Promise<void> {
-    const res = await this.database.query('SELECT * FROM crypto')
-    for (const crypto of res) {
-      const data = await this.binance.fetchPairMarketData(crypto.pair as string, '5m', 1)
-      const closePrice = parseFloat(data[0].close)
-      const openPrice = parseFloat(data[0].open)
-      const price = parseFloat(crypto.close_price as string)
-      const calculate = ((closePrice - openPrice) / openPrice) * 100
-      const profit = ((closePrice - price) / price) * 100
-      if (calculate > 5) {
-        await this.sendMessageAll(`**${crypto.pair}**: ${calculate.toFixed(2)}%`)
-      } else if (profit > 10) {
-        await this.sendMessageAll(`**${crypto.pair}**: ${profit.toFixed(2)}%`)
+    const bigCandles: Record<string, { threshold: number, message: string }> = {
+      '1d': { threshold: 7.5, message: 'Voici les Grosses bougies pour les actifs en 1d:\n' },
+      '1h': { threshold: 3, message: 'Voici les Grosses bougies pour les actifs en 1h:\n' },
+      '5m': { threshold: 1, message: 'Voici les Grosses bougies pour les actifs en 5m:\n' }
+    }
+
+    for (const [candleTime, { threshold, message }] of Object.entries(bigCandles)) {
+      const res = await this.database.query(`SELECT * FROM crypto WHERE candle_time = '${candleTime}'`)
+      let offset = 0
+      let candleMessage = message
+
+      for (const crypto of res) {
+        const data = await this.binance.fetchPairMarketData(crypto.pair as string, candleTime, 1)
+        const closePrice = parseFloat(data[0].close)
+        const openPrice = parseFloat(data[0].open)
+        const profit = ((closePrice - openPrice) / openPrice) * 100
+
+        if (profit > threshold) {
+          candleMessage += `*${crypto.pair}*: ${profit.toFixed(2)}%\n`
+          offset++
+        }
+      }
+
+      if (offset !== 0) {
+        const formattedMessage = `
+          *${message}*
+          \`\`\`
+          ${candleMessage}
+          \`\`\`
+        `
+        this.sendMessageAll(formattedMessage) as any
       }
     }
   }
 
   async sendProfit (chatId: number): Promise<void> {
-    const res = await this.database.query('SELECT * FROM crypto')
-    let message = ''
-    for (const crypto of res) {
-      const data = await this.binance.fetchPairMarketData(crypto.pair as string, '5m', 1)
-      console.log(data)
-      console.log(crypto)
-      const closePrice = parseFloat(data[0].close)
-      const price = parseFloat(crypto.close_price as string)
-      const profit = ((closePrice - price) / price) * 100
-      console.log(closePrice, price, profit)
-      message += `**${crypto.pair}**: ${profit.toFixed(2)}%\n`
+    const intervals = [
+      { interval: '1h', message: 'Voici les profits pour les actifs en 1h:\n' },
+      { interval: '1d', message: 'Voici les profits pour les actifs en 1d:\n' },
+      { interval: '5m', message: 'Voici les profits pour les actifs en 5m:\n' }
+    ]
+
+    for (const { interval, message } of intervals) {
+      const res = await this.database.query(`SELECT * FROM crypto WHERE candle_time = '${interval}'`)
+      let profitMessage = message
+
+      if (res.length === 0) {
+        profitMessage = `Pas de profits pour les actifs en ${interval}\n`
+      } else {
+        for (const crypto of res) {
+          const data = await this.binance.fetchPairMarketData(crypto.pair as string, interval, 1)
+          const closePrice = parseFloat(data[0].close)
+          const price = parseFloat(crypto.close_price as string)
+          const profit = ((closePrice - price) / price) * 100
+          profitMessage += `*${crypto.pair}*: ${profit.toFixed(2)}%\n`
+        }
+      }
+      await this.sendMessage(chatId, profitMessage)
     }
-    this.sendMessage(chatId, message) as any
   }
 
   public run (): void {
@@ -93,7 +122,12 @@ export class Telegram {
       this.sendMessage(chatId, `Commandes disponibles:
       /join - Rejoindre le groupe
       /leave - Quitter le groupe
+      /getProfit - Afficher les profits
       /help - Afficher les commandes disponibles`) as any
     })
+
+    setInterval(() => {
+      this.getBigCandle().catch((err) => { console.log(err) })
+    }, 2 * 60 * 1000)
   }
 }

@@ -22,43 +22,59 @@ async function processInstance (instance: typeInstance): Promise<void> {
   const { decision } = await instance.botAlgorithm.tradeDecision(data)
   const closePrice = parseFloat(data[data.length - 1].close)
 
-  const formatMessage = (action: string, trend: string, term: string): string => {
-    return `
+  const formatMessage = (action: string, trend: string, term: string, recommendation?: string, amount?: number, duration?: string): string => {
+    let message = `
 ${action === 'BUY' ? '✅' : '❌'} *${action}* ${action === 'BUY' ? '📈' : '📉'}
 ${trend}: ${term}
 
 **Symbole:** ${instance.symbol}
 **Price:** ${data[data.length - 1].close}
-  `
+    `
+    if (recommendation != null && amount != null && duration != null) {
+      message += `
+**Recommandation:** ${recommendation}
+**Montant suggéré:** ${amount.toFixed(2)}%
+**Durée suggérée:** ${duration}
+      `
+    }
+    return message
   }
 
   if (decision === 'STRONG_BUY' || decision === 'MEDIUM_BUY') {
     const trendType = instance.interval === '1h' ? 'moyen terme' : instance.interval === '1d' ? 'long terme' : 'court terme'
     const actionType = decision === 'STRONG_BUY' ? 'Fort' : 'Moyenne'
 
-    await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType))
-    const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
+    let recommendation = ''
+    let amount = 0
+    let duration = ''
+    if (decision === 'STRONG_BUY') {
+      recommendation = 'Achat fortement recommandé'
+      amount = 50
+      duration = 'quelques heures à quelques jours'
+    } else if (decision === 'MEDIUM_BUY') {
+      recommendation = 'Achat modérément recommandé'
+      amount = 25
+      duration = 'quelques jours à quelques semaines'
+    }
+
+    await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType, recommendation, amount, duration))
+
+    const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}' AND candle_time = '${instance.interval}'`).catch((err) => { console.log(err) })
     if (result.length === 0) {
-      await database.insert(`INSERT INTO crypto (pair, close_price) VALUES ('${instance.symbol}', ${closePrice})`).catch((err) => { console.log(err) })
+      await database.insert(`INSERT INTO crypto (pair, close_price, candle_time) VALUES ('${instance.symbol}', ${closePrice}, '${instance.interval}')`).catch((err) => { console.log(err) })
     }
   } else if (decision === 'STRONG_SELL' || decision === 'MEDIUM_SELL') {
     const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
     if (result.length > 0) {
       const price = result[result.length - 1].close_price
       const profit = ((closePrice - price) / price) * 100
-      await apiTelegram.sendMessageAll(`📉 *SELL* 📉
-      **Symbole:** ${instance.symbol}
-      **Price:** ${data[data.length - 1].close}
-      **Profit:** ${profit.toFixed(2)}%
+      await apiTelegram.sendMessageAll(`
+📉 *SELL* 📉
+**Symbole:** ${instance.symbol}
+**Price:** ${data[data.length - 1].close}
+**Profit:** ${profit.toFixed(2)}%
       `)
-      database.delete(`DELETE FROM crypto WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
-      const update = await database.query(`SELECT * FROM dataCrypto WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
-      if (update.length > 0) {
-        const profitTotal = update[update.length - 1].profit + profit
-        await database.update(`UPDATE dataCrypto SET profit = ${profitTotal} WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
-      } else {
-        await database.insert(`INSERT INTO dataCrypto (pair, nbSignals, percentProfit) VALUES ('${instance.symbol}', '${result[0].nbSignals++}', ${profit})`).catch((err) => { console.log(err) })
-      }
+      database.delete(`DELETE FROM crypto WHERE pair = '${instance.symbol}' AND candle_time = '${instance.interval}'`).catch((err) => { console.log(err) })
     }
   }
 }
@@ -144,13 +160,13 @@ async function createInstanceMinute (): Promise<void> {
         return {
           id: index,
           symbol: symb,
-          interval: '1m',
+          interval: '5m',
           macdShortPeriod: 12,
           macdLongPeriod: 26,
           macdSignalPeriod: 9,
           rsiPeriod: 14,
           lastDecision: ['HOLD'],
-          binance: new Binance(symb, '1m', 50),
+          binance: new Binance(symb, '5m', 50),
           technicalIndicator: new TechnicalIndicator(),
           botAlgorithm: new BotAlgorithm()
         }
