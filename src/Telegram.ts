@@ -39,7 +39,7 @@ export class Telegram {
     for (const [candleTime, { threshold, message }] of Object.entries(bigCandles)) {
       const res = await this.database.query(`SELECT * FROM crypto WHERE candle_time = '${candleTime}'`)
       let offset = 0
-      let candleMessage = message
+      let candleMessage = ''
 
       for (const crypto of res) {
         const data = await this.binance.fetchPairMarketData(crypto.pair as string, candleTime, 1)
@@ -48,7 +48,7 @@ export class Telegram {
         const profit = ((closePrice - openPrice) / openPrice) * 100
 
         if (profit > threshold) {
-          candleMessage += `*${crypto.pair}*: ${profit.toFixed(2)}%\n`
+          candleMessage += `${crypto.pair}: ${profit.toFixed(2)}%\n`
           offset++
         }
       }
@@ -87,7 +87,11 @@ export class Telegram {
           profitMessage += `*${crypto.pair}*: ${profit.toFixed(2)}%\n`
         }
       }
-      await this.sendMessage(chatId, profitMessage)
+      try {
+        await this.sendMessage(chatId, profitMessage)
+      } catch (err) {
+        console.log(err)
+      }
     }
   }
 
