@@ -136,6 +136,7 @@ export class Telegram {
 
     this.bot.on('message', (msg) => {
       const chatId: number = msg.chat.id
+      if (msg.text === undefined || msg.text === '/join' || msg.text === '/leave' || msg.text === '/getProfit' || msg.text === '/help') return
       const message: string = `Je n'ai pas compris votre demande. Voici les commandes disponibles:\n
 /help - Afficher les commandes disponibles
 /join - Rejoindre le groupe
