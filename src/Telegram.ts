@@ -128,10 +128,21 @@ export class Telegram {
     this.bot.onText(/\/help/, (msg) => {
       const chatId = msg.chat.id
       this.sendMessage(chatId, `Commandes disponibles:
-      /join - Rejoindre le groupe
-      /leave - Quitter le groupe
-      /getProfit - Afficher les profits
-      /help - Afficher les commandes disponibles`) as any
+/join - Rejoindre le groupe
+/leave - Quitter le groupe
+/getProfit - Afficher les profits
+/help - Afficher les commandes disponibles`) as any
+    })
+
+    this.bot.on('message', (msg) => {
+      const chatId: number = msg.chat.id
+      const message: string = `Je n'ai pas compris votre demande. Voici les commandes disponibles:\n
+/help - Afficher les commandes disponibles
+/join - Rejoindre le groupe
+/leave - Quitter le groupe
+/getProfit - Afficher les profits
+      `
+      this.sendMessage(chatId, message) as any
     })
 
     setInterval(() => {

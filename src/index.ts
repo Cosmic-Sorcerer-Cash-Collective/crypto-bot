@@ -69,7 +69,7 @@ ${trend}: ${term}
       const price = result[result.length - 1].close_price
       const profit = ((closePrice - price) / price) * 100
       await apiTelegram.sendMessageAll(`
-📉 *SELL* 📉
+📉 *SELL* 📉\n
 **Symbole:** ${instance.symbol}
 **Price:** ${data[data.length - 1].close}
 **Profit:** ${profit.toFixed(2)}%
