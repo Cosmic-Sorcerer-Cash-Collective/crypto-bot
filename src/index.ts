@@ -184,10 +184,10 @@ async function createInstanceMinute (): Promise<void> {
 createInstanceMinute().catch((err) => { console.log(err) })
 createInstanceHour().catch((err) => { console.log(err) })
 createInstanceDay().catch((err) => { console.log(err) })
-console.log('Bot is running...')
 
 mainHour().catch((err) => { console.log(err) })
 mainDay().catch((err) => { console.log(err) })
+mainMinute().catch((err) => { console.log(err) })
 
 function repeatProcessInstanceHour (): void {
   mainHour().catch((err) => { console.log(err) })
@@ -201,6 +201,6 @@ function repeatProcessInstanceMinute (): void {
   mainMinute().catch((err) => { console.log(err) })
 }
 
-setInterval(repeatProcessInstanceHour, 20 * 60 * 1000)
-setInterval(repeatProcessInstanceDay, 60 * 60 * 1000)
-setInterval(repeatProcessInstanceMinute, 2.5 * 60 * 1000)
+setInterval(repeatProcessInstanceHour, 10 * 60 * 1000)
+setInterval(repeatProcessInstanceDay, 30 * 60 * 1000)
+setInterval(repeatProcessInstanceMinute, 1 * 60 * 1000)

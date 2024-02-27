@@ -1,4 +1,4 @@
-CREATE TABLE crypto (
+CREATE TABLE IF NOT EXISTS crypto (
     id SERIAL PRIMARY KEY,
     pair text NOT NULL,
     close_price numeric NOT NULL,

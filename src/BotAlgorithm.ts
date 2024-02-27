@@ -12,7 +12,6 @@ export class BotAlgorithm {
     const obv = technicalIndicator.calculateOBV(data)
     const awesomeOscillator = technicalIndicator.calculateAwesomeOscillator(data)
     const sar = technicalIndicator.calculateParabolicSAR(data)
-    const ccis = technicalIndicator.calculateCCI(data, 20)
 
     const obvValue = obv[obv.length - 1]
     const awesomeOscillatorValue = awesomeOscillator[awesomeOscillator.length - 1]
@@ -23,37 +22,33 @@ export class BotAlgorithm {
 
     const strongBuyConditions =
       adx > 30 &&
-      rsi < 25 &&
+      rsi < 30 &&
       firstValueMA > secondValueMA &&
       obvValue > 0 &&
       awesomeOscillatorValue > 0 &&
-      sarValue < closePrice &&
-      ccis > 0
+      sarValue < closePrice
 
     const mediumBuyConditions =
       adx > 20 &&
-      rsi < 32.5 &&
+      rsi < 35 &&
       firstValueMA > secondValueMA &&
       obvValue > 0 &&
-      awesomeOscillatorValue > 0 &&
-      ccis > 0
+      awesomeOscillatorValue > 0
 
     const strongSellConditions =
       adx > 30 &&
-      rsi > 75 &&
+      rsi > 70 &&
       firstValueMA < secondValueMA &&
       obvValue < 0 &&
       awesomeOscillatorValue < 0 &&
-      sarValue > closePrice &&
-      ccis < 0
+      sarValue > closePrice
 
     const mediumSellConditions =
       adx > 20 &&
-      rsi > 67.5 &&
+      rsi > 65 &&
       firstValueMA < secondValueMA &&
       obvValue < 0 &&
-      awesomeOscillatorValue < 0 &&
-      ccis < 0
+      awesomeOscillatorValue < 0
 
     if (strongBuyConditions) {
       decision = 'STRONG_BUY'
