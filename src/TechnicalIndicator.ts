@@ -1,4 +1,4 @@
-import { type dataBinance, type macdIndicator } from './utils/type'
+import { type typeFibonacci, type dataBinance, type macdIndicator } from './utils/type'
 
 export class TechnicalIndicator {
   calculateMACD (data: dataBinance[], shortPeriod: number = 12, longPeriod: number = 26, signalPeriod: number = 9): macdIndicator {
@@ -373,33 +373,25 @@ export class TechnicalIndicator {
     return kamaValues[kamaValues.length - 1]
   }
 
-  calculateFiabonacciRetracement (data: dataBinance[], period: number = 20): { upper: number[], lower: number[] } {
-    const prices = data.map((entry) => parseFloat(entry.close))
-    const max = Math.max(...prices.slice(-period))
-    const min = Math.min(...prices.slice(-period))
-    const diff = max - min
-    const upper = max - (diff * 0.236)
-    const lower = min + (diff * 0.236)
-    return { upper: [upper], lower: [lower] }
+  calculateRetracement (data: dataBinance[], period: number = 20, ratio: number = 0.236): typeFibonacci {
+    return this.calculateFibonacci(data, period, ratio)
   }
 
-  calculateFiabonacciFan (data: dataBinance[], period: number = 20): { upper: number[], lower: number[] } {
-    const prices = data.map((entry) => parseFloat(entry.close))
-    const max = Math.max(...prices.slice(-period))
-    const min = Math.min(...prices.slice(-period))
-    const diff = max - min
-    const upper = max - (diff * 0.382)
-    const lower = min + (diff * 0.382)
-    return { upper: [upper], lower: [lower] }
+  calculateFan (data: dataBinance[], period: number = 20, ratio: number = 0.382): typeFibonacci {
+    return this.calculateFibonacci(data, period, ratio)
   }
 
-  calculateFiabonacciExtension (data: dataBinance[], period: number = 20): { upper: number[], lower: number[] } {
-    const prices = data.map((entry) => parseFloat(entry.close))
+  calculateExtension (data: dataBinance[], period: number = 20, ratio: number = 1.618): typeFibonacci {
+    return this.calculateFibonacci(data, period, ratio)
+  }
+
+  private calculateFibonacci (data: dataBinance[], period: number, ratio: number): typeFibonacci {
+    const prices = data.map(entry => parseFloat(entry.close))
     const max = Math.max(...prices.slice(-period))
     const min = Math.min(...prices.slice(-period))
     const diff = max - min
-    const upper = max + (diff * 1.618)
-    const lower = min - (diff * 1.618)
+    const upper = max + (diff * ratio)
+    const lower = min - (diff * ratio)
     return { upper: [upper], lower: [lower] }
   }
 

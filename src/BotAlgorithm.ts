@@ -2,7 +2,7 @@ import { TechnicalIndicator } from './TechnicalIndicator'
 import { type typeTradeDecision, type dataBinance } from './utils/type'
 
 export class BotAlgorithm {
-  public async tradeDecision (data: dataBinance[]): Promise<typeTradeDecision> {
+  public async tradeDecisionShort (data: dataBinance[]): Promise<typeTradeDecision> {
     const technicalIndicator = new TechnicalIndicator()
     let decision: string = 'HOLD'
 
@@ -60,6 +60,30 @@ export class BotAlgorithm {
       decision = 'MEDIUM_SELL'
     }
 
+    return { decision }
+  }
+
+  public async tradeDecisionLong (data: dataBinance[]): Promise<typeTradeDecision> {
+    const technicalIndicator = new TechnicalIndicator()
+    let decision: string = 'HOLD'
+
+    const fibonacciRetracement = technicalIndicator.calculateRetracement(data, 50, 0.236)
+    const fibonacciFan = technicalIndicator.calculateFan(data, 50, 0.382)
+    const closePrice = parseFloat(data[data.length - 1].close)
+    const retracementUpper = fibonacciRetracement.upper[0]
+    const retracementLower = fibonacciRetracement.lower[0]
+    const fanUpper = fibonacciFan.upper[0]
+    const fanLower = fibonacciFan.lower[0]
+
+    if (closePrice > retracementUpper) {
+      decision = 'BUY'
+    }
+    if (closePrice < retracementLower) {
+      decision = 'SELL'
+    }
+    if (closePrice > fanLower && closePrice < fanUpper) {
+      decision = 'HOLD'
+    }
     return { decision }
   }
 }

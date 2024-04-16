@@ -3,7 +3,6 @@ import { Telegram } from './Telegram'
 import { type typeInstance } from './utils/type'
 import { TechnicalIndicator } from './TechnicalIndicator'
 import { BotAlgorithm } from './BotAlgorithm'
-import { Postgres } from './database/Postgres'
 /* eslint-disable @typescript-eslint/no-var-requires */
 require('dotenv').config()
 
@@ -12,15 +11,12 @@ let botInstancesDay: typeInstance[] = []
 let botInstancesMinute: typeInstance[] = []
 const binance = new Binance('BTCUSDT', '1h', 30)
 const MINIMUM_VOLUME = 1500000
-const database = new Postgres()
-const apiTelegram = new Telegram(binance, database)
+const apiTelegram = new Telegram(binance)
 apiTelegram.run()
-database.connect().catch((err) => { console.log(err) })
 
-async function processInstance (instance: typeInstance): Promise<void> {
+async function processInstanceShortTerm (instance: typeInstance): Promise<void> {
   const data = await instance.binance.fetchMarketData()
-  const { decision } = await instance.botAlgorithm.tradeDecision(data)
-  const closePrice = parseFloat(data[data.length - 1].close)
+  const { decision } = await instance.botAlgorithm.tradeDecisionShort(data)
 
   const formatMessage = (action: string, trend: string, term: string, recommendation?: string, amount?: number, duration?: string): string => {
     let message = `
@@ -58,37 +54,74 @@ ${trend}: ${term}
     }
 
     await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType, recommendation, amount, duration))
-
-    const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}' AND candle_time = '${instance.interval}'`).catch((err) => { console.log(err) })
-    if (result.length === 0) {
-      await database.insert(`INSERT INTO crypto (pair, close_price, candle_time) VALUES ('${instance.symbol}', ${closePrice}, '${instance.interval}')`).catch((err) => { console.log(err) })
-    }
   } else if (decision === 'STRONG_SELL' || decision === 'MEDIUM_SELL') {
-    const result = await database.query(`SELECT * FROM crypto WHERE pair = '${instance.symbol}'`).catch((err) => { console.log(err) })
-    if (result.length > 0) {
-      const price = result[result.length - 1].close_price
-      const profit = ((closePrice - price) / price) * 100
-      await apiTelegram.sendMessageAll(`
+    await apiTelegram.sendMessageAll(`
 📉 *SELL* 📉\n
 **Symbole:** ${instance.symbol}
 **Price:** ${data[data.length - 1].close}
-**Profit:** ${profit.toFixed(2)}%
       `)
-      database.delete(`DELETE FROM crypto WHERE pair = '${instance.symbol}' AND candle_time = '${instance.interval}'`).catch((err) => { console.log(err) })
+  }
+}
+
+async function processInstanceLongTerm (instance: typeInstance): Promise<void> {
+  const data = await instance.binance.fetchMarketData()
+  const { decision } = await instance.botAlgorithm.tradeDecisionShort(data)
+
+  const formatMessage = (action: string, trend: string, term: string, recommendation?: string, amount?: number, duration?: string): string => {
+    let message = `
+${action === 'BUY' ? '✅' : '❌'} *${action}* ${action === 'BUY' ? '📈' : '📉'}
+${trend}: ${term}
+
+**Symbole:** ${instance.symbol}
+**Price:** ${data[data.length - 1].close}
+    `
+    if (recommendation != null && amount != null && duration != null) {
+      message += `
+**Recommandation:** ${recommendation}
+**Montant suggéré:** ${amount.toFixed(2)}%
+**Durée suggérée:** ${duration}
+      `
     }
+    return message
+  }
+
+  if (decision === 'STRONG_BUY' || decision === 'MEDIUM_BUY') {
+    const trendType = instance.interval === '1h' ? 'moyen terme' : instance.interval === '1d' ? 'long terme' : 'court terme'
+    const actionType = decision === 'STRONG_BUY' ? 'Fort' : 'Moyenne'
+
+    let recommendation = ''
+    let amount = 0
+    let duration = ''
+    if (decision === 'STRONG_BUY') {
+      recommendation = 'Achat fortement recommandé'
+      amount = 50
+      duration = 'quelques heures à quelques jours'
+    } else if (decision === 'MEDIUM_BUY') {
+      recommendation = 'Achat modérément recommandé'
+      amount = 25
+      duration = 'quelques jours à quelques semaines'
+    }
+
+    await apiTelegram.sendMessageAll(formatMessage('BUY', `${actionType} tendance`, trendType, recommendation, amount, duration))
+  } else if (decision === 'STRONG_SELL' || decision === 'MEDIUM_SELL') {
+    await apiTelegram.sendMessageAll(`
+📉 *SELL* 📉\n
+**Symbole:** ${instance.symbol}
+**Price:** ${data[data.length - 1].close}
+      `)
   }
 }
 
 async function mainMinute (): Promise<void> {
-  await Promise.all(botInstancesMinute.map(processInstance))
+  await Promise.all(botInstancesMinute.map(processInstanceShortTerm))
 }
 
 async function mainDay (): Promise<void> {
-  await Promise.all(botInstancesDay.map(processInstance))
+  await Promise.all(botInstancesDay.map(processInstanceLongTerm))
 }
 
 async function mainHour (): Promise<void> {
-  await Promise.all(botInstancesHour.map(processInstance))
+  await Promise.all(botInstancesHour.map(processInstanceShortTerm))
 }
 
 async function createInstanceDay (): Promise<void> {
@@ -106,7 +139,7 @@ async function createInstanceDay (): Promise<void> {
           macdSignalPeriod: 9,
           rsiPeriod: 14,
           lastDecision: ['HOLD'],
-          binance: new Binance(symb, '1d', 50),
+          binance: new Binance(symb, '1d', 100),
           technicalIndicator: new TechnicalIndicator(),
           botAlgorithm: new BotAlgorithm()
         }

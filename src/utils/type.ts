@@ -40,3 +40,8 @@ export interface macdIndicator {
 export interface typeTradeDecision {
   decision: string
 }
+
+export interface typeFibonacci {
+  upper: number[]
+  lower: number[]
+}
