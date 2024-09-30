@@ -16,7 +16,7 @@ apiTelegram.run()
 
 async function processInstanceShortTerm (instance: typeInstance): Promise<void> {
   const data = await instance.binance.fetchMarketData()
-  const { decision } = await instance.botAlgorithm.tradeDecisionShort(data)
+  const { decision } = await instance.botAlgorithm.tradeDecision(data)
 
   const formatMessage = (action: string, trend: string, term: string, recommendation?: string, amount?: number, duration?: string): string => {
     let message = `
@@ -65,7 +65,7 @@ ${trend}: ${term}
 
 async function processInstanceLongTerm (instance: typeInstance): Promise<void> {
   const data = await instance.binance.fetchMarketData()
-  const { decision } = await instance.botAlgorithm.tradeDecisionShort(data)
+  const { decision } = await instance.botAlgorithm.tradeDecision(data)
 
   const formatMessage = (action: string, trend: string, term: string, recommendation?: string, amount?: number, duration?: string): string => {
     let message = `
@@ -235,5 +235,4 @@ function repeatProcessInstanceMinute (): void {
 }
 
 setInterval(repeatProcessInstanceHour, 10 * 60 * 1000)
-setInterval(repeatProcessInstanceDay, 30 * 60 * 1000)
 setInterval(repeatProcessInstanceMinute, 1 * 60 * 1000)
