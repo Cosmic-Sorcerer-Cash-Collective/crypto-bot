@@ -22,4 +22,13 @@ const pairs = [
 
 const bot = new TradingBot(apiKey, apiSecret, pairs)
 
+// Définir l'intervalle en millisecondes (par exemple, toutes les 5 minutes)
+const interval = 60 * 1000 // 5 minutes
+
+// Exécuter immédiatement au démarrage
 bot.startTrading().catch((error) => { console.error(error) })
+
+// Programmer l'exécution périodique
+setInterval(() => {
+  bot.startTrading().catch((error) => { console.error(error) })
+}, interval)
