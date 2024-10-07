@@ -1,73 +1,63 @@
 import TelegramBot from 'node-telegram-bot-api'
-import { type Binance } from './Binance'
 
 export class Telegram {
   private readonly bot: TelegramBot
-  private readonly binance: Binance
   private readonly chatId: number[] = []
 
-  constructor (crypto: Binance) {
+  constructor () {
     this.bot = new TelegramBot(process.env.TOKEN ?? '', { polling: true })
     if (process.env.CHANNEL !== undefined) {
       this.chatId = process.env.CHANNEL.split(',').map((id) => parseInt(id))
     }
-    this.binance = crypto
   }
 
   private async sendMessage (chatId: number, message: string): Promise<void> {
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' })
   }
 
-  async sendMessageAll (message: string): Promise<void> {
+  public async sendMessageAll (message: string): Promise<void> {
     try {
-      this.chatId.forEach((id) => this.sendMessage(id, message) as any)
-    } catch (err) {
-      console.log(err)
+      this.chatId.forEach((id) => { this.sendMessage(id, message).catch((error) => { console.error(error) }) })
+    } catch (error) {
+      console.error(error)
     }
   }
 
   public run (): void {
     this.bot.onText(/\/join/, (msg) => {
       const chatId = msg.chat.id
-      for (const id of this.chatId) {
-        if (id === chatId) {
-          this.sendMessage(chatId, 'Already joined') as any
-          return
-        }
+      if (this.chatId.includes(chatId)) {
+        this.sendMessage(chatId, 'Vous êtes déjà inscrit.').catch((error) => { console.error(error) })
+        return
       }
       this.chatId.push(chatId)
-      this.sendMessage(chatId, 'Joined') as any
+      this.sendMessage(chatId, 'Inscription réussie.').catch((error) => { console.error(error) })
     })
 
     this.bot.onText(/\/leave/, (msg) => {
       const chatId = msg.chat.id
-      for (let i = 0; i < this.chatId.length; i++) {
-        if (this.chatId[i] === chatId) {
-          this.chatId.splice(i, 1)
-          this.sendMessage(chatId, 'Left') as any
-          return
-        }
+      const index = this.chatId.indexOf(chatId)
+      if (index !== -1) {
+        this.chatId.splice(index, 1)
+        this.sendMessage(chatId, 'Désinscription réussie.').catch((error) => { console.error(error) })
+      } else {
+        this.sendMessage(chatId, 'Vous n\'êtes pas inscrit.').catch((error) => { console.error(error) })
       }
-      this.sendMessage(chatId, 'Not joined') as any
     })
 
     this.bot.onText(/\/help/, (msg) => {
       const chatId = msg.chat.id
       this.sendMessage(chatId, `Commandes disponibles:
-/join - Rejoindre le groupe
-/leave - Quitter le groupe
-/help - Afficher les commandes disponibles`) as any
+- /join : Recevoir les notifications.
+- /leave : Arrêter les notifications.
+- /help : Afficher l'aide.`).catch((error) => { console.error(error) })
     })
 
     this.bot.on('message', (msg) => {
-      const chatId: number = msg.chat.id
-      if (msg.text === undefined || msg.text === '/join' || msg.text === '/leave' || msg.text === '/getProfit' || msg.text === '/help') return
-      const message: string = `Je n'ai pas compris votre demande. Voici les commandes disponibles:\n
-/help - Afficher les commandes disponibles
-/join - Rejoindre le groupe
-/leave - Quitter le groupe
-      `
-      this.sendMessage(chatId, message) as any
+      const chatId = msg.chat.id
+      if (!this.chatId.includes(chatId)) {
+        this.sendMessage(chatId, 'Vous n\'êtes pas inscrit.').catch((error) => { console.error(error) })
+      }
     })
   }
 }

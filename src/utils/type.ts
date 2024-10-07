@@ -1,7 +1,3 @@
-import { type Binance } from '../Binance'
-import { type BotAlgorithm } from '../BotAlgorithm'
-import { type TechnicalIndicator } from '../TechnicalIndicator'
-
 export interface dataBinance {
   open_time: string
   open: string
@@ -17,31 +13,22 @@ export interface dataBinance {
   ignore: string
 }
 
-export interface typeInstance {
-  id: number
-  symbol: string
-  interval: string
-  macdShortPeriod: number
-  macdLongPeriod: number
-  macdSignalPeriod: number
-  rsiPeriod: number
-  lastDecision: string[]
-  binance: Binance
-  technicalIndicator: TechnicalIndicator
-  botAlgorithm: BotAlgorithm
+export interface MACDResult {
+  macd: number[]
+  signal: number[]
+  histogram: number[]
 }
 
-export interface macdIndicator {
-  macd: number
-  signal: number
-  histogram: number
+export interface BollingerBandsResult {
+  middleBand: number[]
+  upperBand: number[]
+  lowerBand: number[]
 }
 
-export interface typeTradeDecision {
-  decision: string
-}
-
-export interface typeFibonacci {
-  upper: number[]
-  lower: number[]
+export interface IchimokuResult {
+  tenkanSen: number[]
+  kijunSen: number[]
+  senkouSpanA: number[]
+  senkouSpanB: number[]
+  chikouSpan: number[]
 }
