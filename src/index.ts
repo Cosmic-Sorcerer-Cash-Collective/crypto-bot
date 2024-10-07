@@ -1,4 +1,6 @@
 import { TradingBot } from './Binance'
+/* eslint-disable @typescript-eslint/no-var-requires */
+require('dotenv').config()
 
 // Vos clés API Binance (à sécuriser)
 const apiKey = process.env.BINANCE_API_KEY ?? ''
