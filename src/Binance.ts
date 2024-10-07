@@ -15,6 +15,7 @@ export class TradingBot {
     })
     this.pairs = pairs
     this.telegram = new Telegram()
+    this.telegram.run()
   }
 
   public async startTrading (): Promise<void> {
