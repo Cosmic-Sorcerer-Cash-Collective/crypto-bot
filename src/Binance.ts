@@ -41,18 +41,20 @@ export class TradingBot {
   private async fetchDataMultiTimeframe (
     symbol: string
   ): Promise<{
+      '1m': dataBinance[]
+      '3m': dataBinance[]
       '5m': dataBinance[]
       '15m': dataBinance[]
+      '30m': dataBinance[]
       '1h': dataBinance[]
-      '6h': dataBinance[]
-      '1d': dataBinance[]
     }> {
     const intervals: Record<string, CandleChartInterval> = {
+      '1m': CandleChartInterval.ONE_MINUTE,
+      '3m': CandleChartInterval.THREE_MINUTES,
       '5m': CandleChartInterval.FIVE_MINUTES,
       '15m': CandleChartInterval.FIFTEEN_MINUTES,
-      '1h': CandleChartInterval.ONE_HOUR,
-      '6h': CandleChartInterval.SIX_HOURS,
-      '1d': CandleChartInterval.ONE_DAY
+      '30m': CandleChartInterval.THIRTY_MINUTES,
+      '1h': CandleChartInterval.ONE_HOUR
     }
 
     const data: Record<string, dataBinance[]> = {}
@@ -63,11 +65,12 @@ export class TradingBot {
     }
 
     return data as {
+      '1m': dataBinance[]
+      '3m': dataBinance[]
       '5m': dataBinance[]
       '15m': dataBinance[]
+      '30m': dataBinance[]
       '1h': dataBinance[]
-      '6h': dataBinance[]
-      '1d': dataBinance[]
     }
   }
 
