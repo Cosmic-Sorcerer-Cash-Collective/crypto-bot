@@ -8,6 +8,7 @@
     "build": "tsc",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
+    "test": "ts-node src/TestAlgorithm.ts",
     "dev": "nodemon --exec ts-node src/index.ts"
   },
   "keywords": [],

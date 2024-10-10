@@ -14,21 +14,21 @@ export interface dataBinance {
 }
 
 export interface MACDResult {
-  macd: number[]
-  signal: number[]
-  histogram: number[]
+  macd: Array<number | undefined>
+  signal: Array<number | undefined>
+  histogram: Array<number | undefined>
 }
 
 export interface BollingerBandsResult {
-  middleBand: number[]
-  upperBand: number[]
-  lowerBand: number[]
+  middleBand: Array<number | undefined>
+  upperBand: Array<number | undefined>
+  lowerBand: Array<number | undefined>
 }
 
 export interface IchimokuResult {
-  tenkanSen: number[]
-  kijunSen: number[]
-  senkouSpanA: number[]
-  senkouSpanB: number[]
-  chikouSpan: number[]
+  tenkanSen: Array<number | undefined>
+  kijunSen: Array<number | undefined>
+  senkouSpanA: Array<number | undefined>
+  senkouSpanB: Array<number | undefined>
+  chikouSpan: Array<number | undefined>
 }
