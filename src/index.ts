@@ -17,7 +17,30 @@ const pairs = [
   'LINKUSDT',
   'LTCUSDT',
   'BCHUSDT',
-  'DOGEUSDT'
+  'DOGEUSDT',
+  'UNIUSDT',
+  'AAVEUSDT',
+  'SNXUSDT',
+  'YFIUSDT',
+  'SUSHIUSDT',
+  'MKRUSDT',
+  'COMPUSDT',
+  'CRVUSDT',
+  'FTMUSDT',
+  'SOLUSDT',
+  'ATOMUSDT',
+  'ALGOUSDT',
+  'XTZUSDT',
+  'ENJUSDT',
+  'MANAUSDT',
+  'CHZUSDT',
+  'VETUSDT',
+  'THETAUSDT',
+  'TFUELUSDT',
+  'ONEUSDT',
+  'LUNAUSDT',
+  'FILUSDT',
+  'ICPUSDT'
 ]
 
 const bot = new TradingBot(apiKey, apiSecret, pairs)

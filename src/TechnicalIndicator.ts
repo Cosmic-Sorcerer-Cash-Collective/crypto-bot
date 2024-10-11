@@ -170,31 +170,29 @@ export function calculateIchimoku (
 
   // Calcul de la Tenkan-sen (ligne de conversion)
   for (let i = 0; i < highs.length; i++) {
-    if (i < conversionPeriod - 1) {
-      tenkanSen.push(undefined)
-    } else {
+    if (i >= conversionPeriod - 1) {
       const high = Math.max(...highs.slice(i - conversionPeriod + 1, i + 1))
       const low = Math.min(...lows.slice(i - conversionPeriod + 1, i + 1))
       tenkanSen.push((high + low) / 2)
+    } else {
+      tenkanSen.push(undefined)
     }
   }
 
   // Calcul de la Kijun-sen (ligne de base)
   for (let i = 0; i < highs.length; i++) {
-    if (i < basePeriod - 1) {
-      kijunSen.push(undefined)
-    } else {
+    if (i >= basePeriod - 1) {
       const high = Math.max(...highs.slice(i - basePeriod + 1, i + 1))
       const low = Math.min(...lows.slice(i - basePeriod + 1, i + 1))
       kijunSen.push((high + low) / 2)
+    } else {
+      kijunSen.push(undefined)
     }
   }
 
   // Calcul du Senkou Span A (première ligne du nuage)
   for (let i = 0; i < highs.length; i++) {
-    if (i < basePeriod - 1) {
-      senkouSpanA.push(undefined)
-    } else {
+    if (i >= basePeriod - 1) {
       const tenkanValue = tenkanSen[i]
       const kijunValue = kijunSen[i]
       if (tenkanValue !== undefined && kijunValue !== undefined) {
@@ -202,17 +200,19 @@ export function calculateIchimoku (
       } else {
         senkouSpanA.push(undefined)
       }
+    } else {
+      senkouSpanA.push(undefined)
     }
   }
 
   // Calcul du Senkou Span B (deuxième ligne du nuage)
   for (let i = 0; i < highs.length; i++) {
-    if (i < leadingSpanBPeriod - 1) {
-      senkouSpanB.push(undefined)
-    } else {
+    if (i >= leadingSpanBPeriod - 1) {
       const high = Math.max(...highs.slice(i - leadingSpanBPeriod + 1, i + 1))
       const low = Math.min(...lows.slice(i - leadingSpanBPeriod + 1, i + 1))
       senkouSpanB.push((high + low) / 2)
+    } else {
+      senkouSpanB.push(undefined)
     }
   }
 
@@ -225,12 +225,20 @@ export function calculateIchimoku (
     }
   }
 
+  // Décalage des Senkou Span A et B
+  const senkouSpanAOffset = senkouSpanA.map((val, index) =>
+    index + displacement < highs.length ? val : undefined
+  )
+  const senkouSpanBOffset = senkouSpanB.map((val, index) =>
+    index + displacement < highs.length ? val : undefined
+  )
+
   // Retour des valeurs calculées
   return {
     tenkanSen,
     kijunSen,
-    senkouSpanA: senkouSpanA.map((val, index) => (index + displacement < highs.length ? val : undefined)),
-    senkouSpanB: senkouSpanB.map((val, index) => (index + displacement < highs.length ? val : undefined)),
+    senkouSpanA: senkouSpanAOffset,
+    senkouSpanB: senkouSpanBOffset,
     chikouSpan
   }
 }

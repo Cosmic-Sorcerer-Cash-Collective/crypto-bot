@@ -74,9 +74,8 @@ export function generateSignals (
 
   const ichimoku1h = indicators.Ichimoku['1h']
   const lastPrice1h = closes['1h'][closes['1h'].length - 1]
-  const lastSenkouSpanA1h = ichimoku1h.senkouSpanA[ichimoku1h.senkouSpanA.length - 1]
-  const lastSenkouSpanB1h = ichimoku1h.senkouSpanB[ichimoku1h.senkouSpanB.length - 1]
-
+  const lastSenkouSpanA1h = [...ichimoku1h.senkouSpanA].reverse().find((value) => value !== undefined)
+  const lastSenkouSpanB1h = [...ichimoku1h.senkouSpanB].reverse().find((value) => value !== undefined)
   // Vérification que toutes les variables nécessaires ne sont pas undefined avant de les utiliser
   if (
     lastPrice1h !== undefined &&
@@ -89,7 +88,6 @@ export function generateSignals (
       trend = 'downtrend'
     }
   }
-
   // Utilisation des timeframes inférieurs pour trouver des points d'entrée/sortie
   const rsi15m = indicators.RSI['15m']
   const lastRsi15m = rsi15m[rsi15m.length - 1]
@@ -101,7 +99,6 @@ export function generateSignals (
 
   let buySignal = false
   let sellSignal = false
-
   // Vérification que toutes les valeurs nécessaires pour les points d'entrée/sortie ne sont pas undefined
   if (
     lastRsi15m !== undefined &&
