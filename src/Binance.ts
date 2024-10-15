@@ -1,4 +1,4 @@
-import Binance, { CandleChartInterval/*, OrderType */, OrderSide } from 'binance-api-node'
+import Binance, { CandleChartInterval/*, OrderType */, OrderSide, OrderType } from 'binance-api-node'
 import { type dataBinance } from './utils/type'
 import { generateSignals } from './BotAlgorithm'
 import { Telegram } from './Telegram'
@@ -75,14 +75,52 @@ export class TradingBot {
   }
 
   private async placeOrder (symbol: string, side: OrderSide): Promise<void> {
-    // Exemple simplifié de placement d'ordre
-    // await this.client.order({
-    //   symbol,
-    //   side,
-    //   quantity: '0.001', // Ajustez selon votre stratégie
-    //   type: OrderType.MARKET
-    // })
-    // console.log(`Ordre ${side} placé pour ${symbol}`)
-    await this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}`)
+    try {
+      // 1. Récupérer le dernier prix pour la paire
+      const ticker = await this.client.prices({ symbol })
+      const price = parseFloat(ticker[symbol])
+
+      if (!price) {
+        console.error(`Impossible de récupérer le prix pour ${symbol}`)
+        return
+      }
+
+      // 2. Calculer la quantité à acheter avec 10 USDT
+      const amountToSpend = 10 // Vous dépensez 10 USDT
+      const quantity = (amountToSpend / price).toFixed(6) // Quantité à acheter en fonction du prix
+
+      // 3. Placer un ordre de marché pour acheter la quantité calculée
+      await this.client.order({
+        symbol,
+        side,
+        quantity,
+        type: OrderType.MARKET
+      })
+
+      console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
+      await this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
+
+      // 4. Si achat, définir le Take Profit et Stop Loss
+      if (side === OrderSide.BUY) {
+        const takeProfitPrice = (price * 1.02).toFixed(6) // 2% au-dessus du prix d'achat
+        const stopLossPrice = (price * 0.98).toFixed(6) // 2% en dessous du prix d'achat
+
+        // 5. Placer des ordres Stop Loss et Take Profit (ordres LIMIT pour simplifier)
+        await this.client.order({
+          symbol,
+          side: OrderSide.SELL, // Vendre pour Take Profit et Stop Loss
+          quantity,
+          price: takeProfitPrice, // Take Profit à 2%
+          stopPrice: stopLossPrice, // Stop Loss à 2%
+          type: OrderType.STOP_LOSS_LIMIT
+        })
+
+        console.log(`Take Profit à ${takeProfitPrice} et Stop Loss à ${stopLossPrice} placés pour ${symbol}`)
+        await this.telegram.sendMessageAll(`Take Profit à ${takeProfitPrice} et Stop Loss à ${stopLossPrice} placés pour ${symbol}`)
+      }
+    } catch (error) {
+      console.error(`Erreur lors de la tentative de placement d'ordre pour ${symbol}:`, error)
+      await this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`)
+    }
   }
 }

@@ -40,7 +40,15 @@ const pairs = [
   'ONEUSDT',
   'LUNAUSDT',
   'FILUSDT',
-  'ICPUSDT'
+  'ICPUSDT',
+  'MATICUSDT',
+  'SANDUSDT',
+  'AXSUSDT',
+  'ETCUSDT',
+  'NEOUSDT',
+  'QTUMUSDT',
+  'WAVESUSDT',
+  'ZECUSDT'
 ]
 
 const bot = new TradingBot(apiKey, apiSecret, pairs)
