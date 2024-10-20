@@ -1,4 +1,4 @@
-import Binance, { CandleChartInterval/*, OrderType */, OrderSide, OrderType } from 'binance-api-node'
+import Binance, { CandleChartInterval, OrderSide, OrderType } from 'binance-api-node'
 import { type dataBinance } from './utils/type'
 import { generateSignals } from './BotAlgorithm'
 import { Telegram } from './Telegram'
@@ -76,20 +76,55 @@ export class TradingBot {
 
   private async placeOrder (symbol: string, side: OrderSide): Promise<void> {
     try {
-      // 1. Récupérer le dernier prix pour la paire
+      // 1. Récupérer les informations de la paire pour LOT_SIZE et PRICE_FILTER
+      const exchangeInfo = await this.client.exchangeInfo()
+      const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === symbol)
+
+      if (symbolInfo === undefined) {
+        console.error(`Informations pour ${symbol} introuvables.`)
+        return
+      }
+
+      const lotSizeFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')
+      const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER')
+
+      if (lotSizeFilter === undefined || !('minQty' in lotSizeFilter && 'stepSize' in lotSizeFilter)) {
+        console.error(`Filtres LOT_SIZE ou PRICE_FILTER introuvables pour ${symbol}.`)
+        return
+      }
+
+      if (priceFilter === undefined || !('tickSize' in priceFilter)) {
+        console.error(`PRICE_FILTER introuvable ou incomplet pour ${symbol}.`)
+        return
+      }
+
+      const minQty = parseFloat(lotSizeFilter.minQty)
+      const stepSize = parseFloat(lotSizeFilter.stepSize)
+      const tickSize = parseFloat(priceFilter.tickSize)
+
+      // 2. Récupérer le dernier prix pour la paire
       const ticker = await this.client.prices({ symbol })
       const price = parseFloat(ticker[symbol])
 
-      if (!price) {
+      if (price === undefined) {
         console.error(`Impossible de récupérer le prix pour ${symbol}`)
         return
       }
 
-      // 2. Calculer la quantité à acheter avec 10 USDT
+      // 3. Calculer la quantité à acheter avec 10 USDT
       const amountToSpend = 10 // Vous dépensez 10 USDT
-      const quantity = (amountToSpend / price).toFixed(6) // Quantité à acheter en fonction du prix
+      let quantity = (amountToSpend / price).toFixed(6)
 
-      // 3. Placer un ordre de marché pour acheter la quantité calculée
+      // 4. Ajuster la quantité pour respecter les règles de LOT_SIZE
+      quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
+
+      // Vérifier si la quantité est suffisante (minQty)
+      if (parseFloat(quantity) < minQty) {
+        console.error(`Quantité trop petite pour ${symbol}. Quantité minimale: ${minQty}, Quantité calculée: ${quantity}`)
+        return
+      }
+
+      // 5. Placer un ordre de marché pour acheter la quantité calculée
       await this.client.order({
         symbol,
         side,
@@ -100,12 +135,16 @@ export class TradingBot {
       console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
       await this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
 
-      // 4. Si achat, définir le Take Profit et Stop Loss
+      // 6. Si achat, définir le Take Profit et Stop Loss
       if (side === OrderSide.BUY) {
-        const takeProfitPrice = (price * 1.02).toFixed(6) // 2% au-dessus du prix d'achat
-        const stopLossPrice = (price * 0.98).toFixed(6) // 2% en dessous du prix d'achat
+        let takeProfitPrice = (price * 1.02).toFixed(6) // 2% au-dessus du prix d'achat
+        let stopLossPrice = (price * 0.98).toFixed(6) // 2% en dessous du prix d'achat
 
-        // 5. Placer des ordres Stop Loss et Take Profit (ordres LIMIT pour simplifier)
+        // 7. Ajuster les prix selon la tickSize
+        takeProfitPrice = (Math.floor(parseFloat(takeProfitPrice) / tickSize) * tickSize).toFixed(6)
+        stopLossPrice = (Math.floor(parseFloat(stopLossPrice) / tickSize) * tickSize).toFixed(6)
+
+        // 8. Placer des ordres Stop Loss et Take Profit
         await this.client.order({
           symbol,
           side: OrderSide.SELL, // Vendre pour Take Profit et Stop Loss
