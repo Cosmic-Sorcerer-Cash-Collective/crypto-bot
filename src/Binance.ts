@@ -22,19 +22,48 @@ export class TradingBot {
     for (const pair of this.pairs) {
       try {
         const dataMultiTimeframe = await this.fetchDataMultiTimeframe(pair)
-        const signals = generateSignals(dataMultiTimeframe)
-        const { buy, sell } = signals
+        const { buy, sell, timeframe } = generateSignals(dataMultiTimeframe)
 
-        if (buy) {
-          await this.placeOrder(pair, OrderSide.BUY)
-        } else if (sell) {
-          await this.placeOrder(pair, OrderSide.SELL)
+        const openOrders = await this.client.openOrders({ symbol: pair })
+        const hasOpenOrder = openOrders.length > 0
+
+        if (hasOpenOrder) {
+          console.log(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
+          await this.telegram.sendMessageAll(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
+          continue
+        }
+
+        if (buy || sell) {
+          const takeProfitPercentage = this.calculateTakeProfitBasedOnTimeframe(timeframe)
+
+          if (buy) {
+            await this.placeOrder(pair, OrderSide.BUY, takeProfitPercentage)
+          } else if (sell) {
+            await this.placeOrder(pair, OrderSide.SELL, takeProfitPercentage)
+          }
         } else {
           console.log(`Aucun signal pour ${pair}`)
         }
       } catch (error) {
         console.error(`Erreur lors du traitement de la paire ${pair}:`, error)
       }
+    }
+  }
+
+  private calculateTakeProfitBasedOnTimeframe (timeframe: string | null): number {
+    switch (timeframe) {
+      case '1m':
+      case '3m':
+        return 1.5 // Take profit de 1.5% pour des timeframes courts
+      case '5m':
+      case '15m':
+        return 2.5 // Take profit de 2.5% pour des timeframes intermédiaires
+      case '30m':
+        return 3.5 // Take profit de 3.5%
+      case '1h':
+        return 5 // Take profit de 5% pour les timeframes longs
+      default:
+        return 2 // Valeur par défaut de 2% si aucune information n'est disponible
     }
   }
 
@@ -74,7 +103,7 @@ export class TradingBot {
     }
   }
 
-  private async placeOrder (symbol: string, side: OrderSide): Promise<void> {
+  private async placeOrder (symbol: string, side: OrderSide, takeProfitPercentage: number): Promise<void> {
     try {
       // 1. Récupérer les informations de la paire pour LOT_SIZE et PRICE_FILTER
       const exchangeInfo = await this.client.exchangeInfo()
@@ -112,7 +141,7 @@ export class TradingBot {
       }
 
       // 3. Calculer la quantité à acheter avec 10 USDT
-      const amountToSpend = 20 // Vous dépensez 10 USDT
+      const amountToSpend = 10 // Vous dépensez 10 USDT
       let quantity = (amountToSpend / price).toFixed(6)
 
       // 4. Ajuster la quantité pour respecter les règles de LOT_SIZE
@@ -135,30 +164,24 @@ export class TradingBot {
       console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
       await this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
 
-      // 6. Si achat, définir le Take Profit et Stop Loss
       if (side === OrderSide.BUY) {
-        let takeProfitPrice = (price * 1.02).toFixed(6) // 2% au-dessus du prix d'achat
-        let stopLossPrice = (price * 0.98).toFixed(6) // 2% en dessous du prix d'achat
+        let sellLimitPrice = (price * (1 + takeProfitPercentage / 100)).toFixed(6)
+        sellLimitPrice = (Math.floor(parseFloat(sellLimitPrice) / tickSize) * tickSize).toFixed(6)
 
-        // 7. Ajuster les prix selon la tickSize
-        takeProfitPrice = (Math.floor(parseFloat(takeProfitPrice) / tickSize) * tickSize).toFixed(6)
-        stopLossPrice = (Math.floor(parseFloat(stopLossPrice) / tickSize) * tickSize).toFixed(6)
-
-        // 8. Placer des ordres Stop Loss et Take Profit
         await this.client.order({
           symbol,
-          side: OrderSide.SELL, // Vendre pour Take Profit et Stop Loss
+          side: OrderSide.SELL,
           quantity,
-          price: takeProfitPrice, // Take Profit à 2%
-          stopPrice: stopLossPrice, // Stop Loss à 2%
-          type: OrderType.STOP_LOSS_LIMIT
+          price: sellLimitPrice,
+          type: OrderType.LIMIT,
+          timeInForce: 'GTC'
         })
 
-        console.log(`Take Profit à ${takeProfitPrice} et Stop Loss à ${stopLossPrice} placés pour ${symbol}`)
-        await this.telegram.sendMessageAll(`Take Profit à ${takeProfitPrice} et Stop Loss à ${stopLossPrice} placés pour ${symbol}`)
+        console.log(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`)
+        await this.telegram.sendMessageAll(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`)
       }
     } catch (error) {
-      console.error(`Erreur lors de la tentative de placement d'ordre pour ${symbol}:`, error)
+      console.error(`Erreur lors du placement d'ordre pour ${symbol}:`, error)
       await this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`)
     }
   }
