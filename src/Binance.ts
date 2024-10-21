@@ -140,8 +140,8 @@ export class TradingBot {
         return
       }
 
-      // 3. Calculer la quantité à acheter avec 10 USDT
-      const amountToSpend = 10 // Vous dépensez 10 USDT
+      // 3. Calculer la quantité à acheter avec 50 USDT
+      const amountToSpend = 50 // Vous dépensez 50 USDT
       let quantity = (amountToSpend / price).toFixed(6)
 
       // 4. Ajuster la quantité pour respecter les règles de LOT_SIZE

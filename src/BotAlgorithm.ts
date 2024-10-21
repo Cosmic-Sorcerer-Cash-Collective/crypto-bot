@@ -48,19 +48,14 @@ export function generateSignals (
     const high = highs[tf]
     const low = lows[tf]
 
-    // RSI
     indicators.RSI[tf] = calculateRSI(close, 14)
 
-    // MACD
     indicators.MACD[tf] = calculateMACD(close, 12, 26, 9)
 
-    // Bandes de Bollinger
     indicators.BollingerBands[tf] = calculateBollingerBands(close, 20, 2)
 
-    // Ichimoku Cloud
     indicators.Ichimoku[tf] = calculateIchimoku(high, low, close)
 
-    // Niveaux de Fibonacci
     const recentHigh = Math.max(...high.slice(-20))
     const recentLow = Math.min(...low.slice(-20))
     indicators.Fibonacci[tf] = calculateFibonacciLevels(recentHigh, recentLow)
@@ -110,7 +105,6 @@ export function generateSignals (
     }
   }
 
-  // Calcul du pourcentage de take profit basé sur le timeframe
   const takeProfitPercentage = calculateTakeProfitPercentage(timeframe)
 
   return { buy: buySignal, sell: sellSignal, timeframe, takeProfitPercentage }
@@ -120,15 +114,14 @@ function calculateTakeProfitPercentage (timeframe: string | null): number {
   switch (timeframe) {
     case '1m':
     case '3m':
-      return 1.5 // 1.5% pour les timeframes courts
+      return 0.8
     case '5m':
     case '15m':
-      return 2.5 // 2.5% pour les timeframes intermédiaires
+      return 1.5
     case '30m':
-      return 3.5 // 3.5% pour les timeframes moyens
     case '1h':
-      return 5.0 // 5% pour les timeframes longs
+      return 5.0
     default:
-      return 2.0 // Valeur par défaut de 2% si timeframe inconnu
+      return 2.0
   }
 }
