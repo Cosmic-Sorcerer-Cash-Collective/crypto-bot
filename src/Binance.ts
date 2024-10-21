@@ -140,11 +140,20 @@ export class TradingBot {
         return
       }
 
-      // 3. Calculer la quantité à acheter avec 50 USDT
+      // 3. Vérification du solde
+      const accountInfo = await this.client.accountInfo()
+      const assetBalance = accountInfo.balances.find(b => b.asset === (side === OrderSide.BUY ? 'USDT' : symbol.replace('USDT', '')))
       const amountToSpend = 50 // Vous dépensez 50 USDT
       let quantity = (amountToSpend / price).toFixed(6)
+      quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
 
-      // 4. Ajuster la quantité pour respecter les règles de LOT_SIZE
+      if (assetBalance === undefined || parseFloat(assetBalance.free) < (side === OrderSide.BUY ? amountToSpend : parseFloat(quantity))) {
+        console.error(`Balance insuffisante pour ${symbol}. Disponible: ${assetBalance?.free}`)
+        return
+      }
+
+      // 4. Calculer la quantité à acheter/vendre
+      quantity = (amountToSpend / price).toFixed(6)
       quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
 
       // Vérifier si la quantité est suffisante (minQty)
@@ -153,7 +162,7 @@ export class TradingBot {
         return
       }
 
-      // 5. Placer un ordre de marché pour acheter la quantité calculée
+      // 5. Placer un ordre de marché pour acheter/vendre la quantité calculée
       await this.client.order({
         symbol,
         side,
