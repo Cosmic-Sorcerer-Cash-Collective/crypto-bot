@@ -29,7 +29,6 @@ export class TradingBot {
 
         if (hasOpenOrder) {
           console.log(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
-          await this.telegram.sendMessageAll(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
           continue
         }
 
@@ -54,16 +53,16 @@ export class TradingBot {
     switch (timeframe) {
       case '1m':
       case '3m':
-        return 1.5 // Take profit de 1.5% pour des timeframes courts
+        return 1.5
       case '5m':
       case '15m':
-        return 2.5 // Take profit de 2.5% pour des timeframes intermédiaires
+        return 2.5
       case '30m':
-        return 3.5 // Take profit de 3.5%
+        return 3.5
       case '1h':
-        return 5 // Take profit de 5% pour les timeframes longs
+        return 5
       default:
-        return 2 // Valeur par défaut de 2% si aucune information n'est disponible
+        return 2
     }
   }
 
@@ -143,7 +142,7 @@ export class TradingBot {
       // 3. Vérification du solde
       const accountInfo = await this.client.accountInfo()
       const assetBalance = accountInfo.balances.find(b => b.asset === (side === OrderSide.BUY ? 'USDT' : symbol.replace('USDT', '')))
-      const amountToSpend = 50 // Vous dépensez 50 USDT
+      const amountToSpend = parseFloat(process.env.AMOUNT_TO_SPEND ?? '10')
       let quantity = (amountToSpend / price).toFixed(6)
       quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
 
@@ -152,46 +151,43 @@ export class TradingBot {
         return
       }
 
-      // 4. Calculer la quantité à acheter/vendre
       quantity = (amountToSpend / price).toFixed(6)
       quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
 
-      // Vérifier si la quantité est suffisante (minQty)
       if (parseFloat(quantity) < minQty) {
         console.error(`Quantité trop petite pour ${symbol}. Quantité minimale: ${minQty}, Quantité calculée: ${quantity}`)
         return
       }
 
-      // 5. Placer un ordre de marché pour acheter/vendre la quantité calculée
-      await this.client.order({
+      this.client.order({
         symbol,
         side,
         quantity,
         type: OrderType.MARKET
-      })
+      }).catch(console.error)
 
       console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
-      await this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
+      this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`).catch(console.error)
 
       if (side === OrderSide.BUY) {
         let sellLimitPrice = (price * (1 + takeProfitPercentage / 100)).toFixed(6)
         sellLimitPrice = (Math.floor(parseFloat(sellLimitPrice) / tickSize) * tickSize).toFixed(6)
 
-        await this.client.order({
+        this.client.order({
           symbol,
           side: OrderSide.SELL,
           quantity,
           price: sellLimitPrice,
           type: OrderType.LIMIT,
           timeInForce: 'GTC'
-        })
+        }).catch(console.error)
 
         console.log(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`)
-        await this.telegram.sendMessageAll(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`)
+        this.telegram.sendMessageAll(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`).catch(console.error)
       }
     } catch (error) {
       console.error(`Erreur lors du placement d'ordre pour ${symbol}:`, error)
-      await this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`)
+      this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`).catch(console.error)
     }
   }
 }

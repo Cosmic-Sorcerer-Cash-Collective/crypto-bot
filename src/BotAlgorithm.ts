@@ -47,20 +47,14 @@ export function generateSignals (
     const close = closes[tf]
     const high = highs[tf]
     const low = lows[tf]
-
     indicators.RSI[tf] = calculateRSI(close, 14)
-
     indicators.MACD[tf] = calculateMACD(close, 12, 26, 9)
-
     indicators.BollingerBands[tf] = calculateBollingerBands(close, 20, 2)
-
     indicators.Ichimoku[tf] = calculateIchimoku(high, low, close)
-
-    const recentHigh = Math.max(...high.slice(-20))
-    const recentLow = Math.min(...low.slice(-20))
+    const recentHigh = Math.max(...high.slice(-30))
+    const recentLow = Math.min(...low.slice(-30))
     indicators.Fibonacci[tf] = calculateFibonacciLevels(recentHigh, recentLow)
   }
-
   let trend: 'uptrend' | 'downtrend' | 'sideways' = 'sideways'
   const ichimoku1h = indicators.Ichimoku['1h']
   const lastPrice1h = closes['1h'][closes['1h'].length - 1]
@@ -85,7 +79,6 @@ export function generateSignals (
   const lastClose15m = closes['15m'][closes['15m'].length - 1]
   const lastUpperBand15m = bb15m.upperBand[bb15m.upperBand.length - 1]
   const lastLowerBand15m = bb15m.lowerBand[bb15m.lowerBand.length - 1]
-
   let buySignal = false
   let sellSignal = false
   let timeframe = null
@@ -105,8 +98,47 @@ export function generateSignals (
     }
   }
 
-  const takeProfitPercentage = calculateTakeProfitPercentage(timeframe)
+  const fibLevels15m = indicators.Fibonacci['15m']
+  const lastPrice15m = lastClose15m
+  const nearFibLevel = fibLevels15m.some(
+    (level) => Math.abs((lastPrice15m - level) / level) < 0.005
+  )
 
+  if (lastPrice15m !== undefined) {
+    if (buySignal && nearFibLevel) {
+      buySignal = true
+      sellSignal = false
+    } else if (sellSignal && nearFibLevel) {
+      sellSignal = true
+      buySignal = false
+    }
+  }
+
+  const ichimoku15m = indicators.Ichimoku['15m']
+  const lastTenkan15m = ichimoku15m.tenkanSen[ichimoku15m.tenkanSen.length - 1]
+  const lastKijun15m = ichimoku15m.kijunSen[ichimoku15m.kijunSen.length - 1]
+
+  if (
+    lastTenkan15m !== undefined &&
+  lastKijun15m !== undefined
+  ) {
+    if (buySignal && lastTenkan15m > lastKijun15m) {
+      buySignal = true
+      sellSignal = false
+    } else if (sellSignal && lastTenkan15m < lastKijun15m) {
+      sellSignal = true
+      buySignal = false
+    } else {
+      buySignal = false
+      sellSignal = false
+    }
+  }
+
+  if (timeframe === null) {
+    timeframe = '15m'
+  }
+
+  const takeProfitPercentage = calculateTakeProfitPercentage(timeframe)
   return { buy: buySignal, sell: sellSignal, timeframe, takeProfitPercentage }
 }
 
