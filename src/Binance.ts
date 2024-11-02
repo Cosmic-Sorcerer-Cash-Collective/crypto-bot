@@ -1,12 +1,18 @@
 import Binance, { CandleChartInterval, OrderSide, OrderType } from 'binance-api-node'
 import { type dataBinance } from './utils/type'
-import { generateSignals } from './BotAlgorithm'
+import { generateSignals, IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from './BotAlgorithm'
 import { Telegram } from './Telegram'
 
 export class TradingBot {
   private readonly client: ReturnType<typeof Binance>
   private readonly pairs: string[]
   private readonly telegram: Telegram
+  private readonly indicators: {
+    RSI: IndicatorRSI
+    MACD: IndicatorMACD
+    BollingerBands: IndicatorBollingerBands
+    Ichimoku: IndicatorIchimoku
+  }
 
   constructor (apiKey: string, apiSecret: string, pairs: string[]) {
     this.client = Binance({
@@ -16,14 +22,19 @@ export class TradingBot {
     this.pairs = pairs
     this.telegram = new Telegram()
     this.telegram.run()
+    this.indicators = {
+      RSI: new IndicatorRSI(),
+      MACD: new IndicatorMACD(),
+      BollingerBands: new IndicatorBollingerBands(),
+      Ichimoku: new IndicatorIchimoku()
+    }
   }
 
   public async startTrading (): Promise<void> {
     for (const pair of this.pairs) {
       try {
         const dataMultiTimeframe = await this.fetchDataMultiTimeframe(pair)
-        const { buy, sell, timeframe } = generateSignals(dataMultiTimeframe)
-
+        const { buy, sell, takeProfitPercentage } = generateSignals(dataMultiTimeframe, this.indicators)
         const openOrders = await this.client.openOrders({ symbol: pair })
         const hasOpenOrder = openOrders.length > 0
 
@@ -31,38 +42,16 @@ export class TradingBot {
           console.log(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
           continue
         }
-
         if (buy || sell) {
-          const takeProfitPercentage = this.calculateTakeProfitBasedOnTimeframe(timeframe)
-
           if (buy) {
             await this.placeOrder(pair, OrderSide.BUY, takeProfitPercentage)
           } else if (sell) {
             await this.placeOrder(pair, OrderSide.SELL, takeProfitPercentage)
           }
-        } else {
-          console.log(`Aucun signal pour ${pair}`)
         }
       } catch (error) {
         console.error(`Erreur lors du traitement de la paire ${pair}:`, error)
       }
-    }
-  }
-
-  private calculateTakeProfitBasedOnTimeframe (timeframe: string | null): number {
-    switch (timeframe) {
-      case '1m':
-      case '3m':
-        return 1.5
-      case '5m':
-      case '15m':
-        return 2.5
-      case '30m':
-        return 3.5
-      case '1h':
-        return 5
-      default:
-        return 2
     }
   }
 
