@@ -254,3 +254,95 @@ export function calculateFibonacciLevels (high: number, low: number): number[] {
     low
   ]
 }
+
+export function calculateATR (data: number[][], period: number): number {
+  const trueRanges: number[] = []
+
+  for (let i = 1; i < data.length; i++) {
+    const high = data[i][0] // high price
+    const low = data[i][1] // low price
+    const prevClose = data[i - 1][2] // previous close price
+
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    )
+    trueRanges.push(tr)
+  }
+
+  // Calcul de l'ATR initial (moyenne des premiers TR)
+  let atr = trueRanges.slice(0, period).reduce((sum, tr) => sum + tr, 0) / period
+
+  // Moyenne exponentielle des TR pour les périodes suivantes
+  for (let i = period; i < trueRanges.length; i++) {
+    atr = ((trueRanges[i] / period) + (atr * (period - 1)) / period)
+  }
+
+  return atr
+}
+
+export function calculateAverageVolume (data: Array<{ volume: number }>, period: number): number {
+  // Prend les 'period' derniers volumes et calcule leur somme
+  const volumeData = data.slice(-period)
+  const totalVolume = volumeData.reduce((sum, item) => sum + item.volume, 0)
+
+  // Renvoie la moyenne des volumes
+  return totalVolume / period
+}
+
+export function calculateADX (data: Array<{ high: number, low: number, close: number }>, period: number): number | undefined {
+  if (data.length < period) return undefined // Vérifie que les données suffisent
+
+  let smoothedPlusDM = 0; let smoothedMinusDM = 0; let smoothedTR = 0
+  const dxValues: number[] = []
+
+  // Calcul initial pour les premières périodes
+  for (let i = 1; i < period; i++) {
+    const currentHigh = data[i].high
+    const currentLow = data[i].low
+    const prevHigh = data[i - 1].high
+    const prevLow = data[i - 1].low
+    const prevClose = data[i - 1].close
+
+    // True Range (TR)
+    const tr = Math.max(currentHigh - currentLow, Math.abs(currentHigh - prevClose), Math.abs(currentLow - prevClose))
+    smoothedTR += tr
+
+    // +DM et -DM
+    smoothedPlusDM += currentHigh - prevHigh > prevLow - currentLow && currentHigh - prevHigh > 0 ? currentHigh - prevHigh : 0
+    smoothedMinusDM += prevLow - currentLow > currentHigh - prevHigh && prevLow - currentLow > 0 ? prevLow - currentLow : 0
+  }
+
+  // Boucle principale pour le calcul de DX et le lissage progressif
+  for (let i = period; i < data.length; i++) {
+    const currentHigh = data[i].high
+    const currentLow = data[i].low
+    const prevHigh = data[i - 1].high
+    const prevLow = data[i - 1].low
+    const prevClose = data[i - 1].close
+
+    // True Range (TR)
+    const tr = Math.max(currentHigh - currentLow, Math.abs(currentHigh - prevClose), Math.abs(currentLow - prevClose))
+    smoothedTR = smoothedTR - (smoothedTR / period) + tr
+
+    // +DM et -DM
+    const plusDM = currentHigh - prevHigh > prevLow - currentLow && currentHigh - prevHigh > 0 ? currentHigh - prevHigh : 0
+    const minusDM = prevLow - currentLow > currentHigh - prevHigh && prevLow - currentLow > 0 ? prevLow - currentLow : 0
+    smoothedPlusDM = smoothedPlusDM - (smoothedPlusDM / period) + plusDM
+    smoothedMinusDM = smoothedMinusDM - (smoothedMinusDM / period) + minusDM
+
+    // Calcul des +DI et -DI
+    const plusDI = (smoothedPlusDM / smoothedTR) * 100
+    const minusDI = (smoothedMinusDM / smoothedTR) * 100
+
+    // Calcul du DX
+    const dx = Math.abs((plusDI - minusDI) / (plusDI + minusDI)) * 100
+    dxValues.push(dx)
+  }
+
+  // Calcul de l'ADX comme moyenne des DX calculés
+  const adx = dxValues.reduce((sum, value) => sum + value, 0) / dxValues.length
+
+  return adx
+}

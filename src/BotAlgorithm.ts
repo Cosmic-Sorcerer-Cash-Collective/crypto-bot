@@ -3,7 +3,11 @@ import {
   calculateMACD,
   calculateBollingerBands,
   calculateIchimoku,
-  calculateFibonacciLevels
+  calculateFibonacciLevels,
+  calculateATR,
+  calculateAverageVolume,
+  calculateADX,
+  calculateEMA
 } from './TechnicalIndicator'
 import { type BollingerBandsResult, type IchimokuResult, type MACDResult, type dataBinance } from './utils/type'
 
@@ -55,7 +59,7 @@ export class IndicatorIchimoku {
   }
 }
 
-// Fonction générique de calcul des signaux pour une paire et un ensemble de données sur plusieurs périodes
+// Fonction de génération de signaux d'achat/vente
 export function generateSignals (
   dataMultiTimeframe: Record<string, dataBinance[]>,
   indicators: {
@@ -70,6 +74,7 @@ export function generateSignals (
   const highs: Record<string, number[]> = {}
   const lows: Record<string, number[]> = {}
 
+  // Extraction et conversion des données
   for (const tf of timeframes) {
     closes[tf] = dataMultiTimeframe[tf].map((d) => parseFloat(d.close))
     highs[tf] = dataMultiTimeframe[tf].map((d) => parseFloat(d.high))
@@ -82,12 +87,22 @@ export function generateSignals (
     BollingerBands: Record<string, BollingerBandsResult>
     Ichimoku: Record<string, IchimokuResult>
     Fibonacci: Record<string, number[]>
+    ATR: Record<string, number>
+    Volume: Record<string, number>
+    ADX: Record<string, number | undefined>
+    EMA50: Record<string, number>
+    EMA200: Record<string, number>
   } = {
     RSI: {},
     MACD: {},
     BollingerBands: {},
     Ichimoku: {},
-    Fibonacci: {}
+    Fibonacci: {},
+    ATR: {},
+    Volume: {},
+    ADX: {},
+    EMA50: {},
+    EMA200: {}
   }
 
   for (const tf of timeframes) {
@@ -95,75 +110,52 @@ export function generateSignals (
     indicatorResults.MACD[tf] = indicators.MACD.calculate(closes[tf])
     indicatorResults.BollingerBands[tf] = indicators.BollingerBands.calculate(closes[tf])
     indicatorResults.Ichimoku[tf] = indicators.Ichimoku.calculate(highs[tf], lows[tf], closes[tf])
-    const recentHigh = Math.max(...highs[tf].slice(-30))
-    const recentLow = Math.min(...lows[tf].slice(-30))
-    indicatorResults.Fibonacci[tf] = calculateFibonacciLevels(recentHigh, recentLow)
+    indicatorResults.Fibonacci[tf] = calculateFibonacciLevels(Math.max(...highs[tf].slice(-30)), Math.min(...lows[tf].slice(-30)))
+    indicatorResults.ATR[tf] = calculateATR([highs[tf], lows[tf], closes[tf]], 14)
+    indicatorResults.Volume[tf] = calculateAverageVolume(dataMultiTimeframe[tf].map(d => ({ volume: parseFloat(d.volume) })), 20)
+    indicatorResults.ADX[tf] = calculateADX(closes[tf].map((c, i) => ({ close: c, high: highs[tf][i], low: lows[tf][i] })), 14)
+    indicatorResults.EMA50[tf] = calculateEMA(closes[tf], 50).filter((value): value is number => value !== undefined).reverse()[0]
+    indicatorResults.EMA200[tf] = calculateEMA(closes[tf], 200).filter((value): value is number => value !== undefined).reverse()[0]
   }
 
-  // Tendance sur le timeframe 1h
+  // Détection de la tendance générale sur 1h avec Ichimoku et EMA
   let trend: 'uptrend' | 'downtrend' | 'sideways' = 'sideways'
   const ichimoku1h = indicatorResults.Ichimoku['1h']
   const lastPrice1h = closes['1h'][closes['1h'].length - 1]
-  const lastSenkouSpanA1h = [...ichimoku1h.senkouSpanA].reverse().find((value) => value !== undefined)
-  const lastSenkouSpanB1h = [...ichimoku1h.senkouSpanB].reverse().find((value) => value !== undefined)
+  const lastSenkouSpanA1h = ichimoku1h.senkouSpanA[ichimoku1h.senkouSpanA.length - 1]
+  const lastSenkouSpanB1h = ichimoku1h.senkouSpanB[ichimoku1h.senkouSpanB.length - 1]
 
-  if (lastSenkouSpanA1h !== undefined && lastSenkouSpanB1h !== undefined) {
-    if (lastPrice1h > lastSenkouSpanA1h && lastPrice1h > lastSenkouSpanB1h) {
-      trend = 'uptrend'
-    } else if (lastPrice1h < lastSenkouSpanA1h && lastPrice1h < lastSenkouSpanB1h) {
-      trend = 'downtrend'
-    }
+  if (lastSenkouSpanA1h === undefined || lastSenkouSpanB1h === undefined) {
+    throw new Error('Impossible de déterminer la tendance actuelle')
+  }
+  if (lastPrice1h > lastSenkouSpanA1h && lastPrice1h > lastSenkouSpanB1h && lastPrice1h > indicatorResults.EMA200['1h']) {
+    trend = 'uptrend'
+  } else if (lastPrice1h < lastSenkouSpanA1h && lastPrice1h < lastSenkouSpanB1h && lastPrice1h < indicatorResults.EMA200['1h']) {
+    trend = 'downtrend'
   }
 
+  // Définition de seuils adaptatifs pour le RSI
   const rsi15m = indicatorResults.RSI['15m']
+  const atr15m = indicatorResults.ATR['15m']
   const lastRsi15m = rsi15m[rsi15m.length - 1]
-  const bb15m = indicatorResults.BollingerBands['15m']
-  const lastClose15m = closes['15m'][closes['15m'].length - 1]
-  const lastUpperBand15m = bb15m.upperBand[bb15m.upperBand.length - 1]
-  const lastLowerBand15m = bb15m.lowerBand[bb15m.lowerBand.length - 1]
+  const rsiOverbought = 70 + (atr15m / lastPrice1h) * 10
+  const rsiOversold = 30 - (atr15m / lastPrice1h) * 10
 
   let buySignal = false
   let sellSignal = false
   let timeframe: string | null = null
+  const adx15m = indicatorResults.ADX['15m']
+  const lastBBUpper15m = indicatorResults.BollingerBands['15m'].upperBand[closes['15m'].length - 1]
 
-  if (lastRsi15m !== undefined && lastUpperBand15m !== undefined && lastLowerBand15m !== undefined) {
-    if (trend === 'uptrend' && lastRsi15m < 30 && lastClose15m < lastLowerBand15m) {
-      buySignal = true
-      timeframe = '15m'
-    } else if (trend === 'downtrend' && lastRsi15m > 70 && lastClose15m > lastUpperBand15m) {
-      sellSignal = true
-      timeframe = '15m'
-    }
+  if (lastRsi15m === undefined || adx15m === undefined || lastBBUpper15m === undefined) {
+    throw new Error('Impossible de déterminer le RSI actuel')
   }
 
-  const fibLevels15m = indicatorResults.Fibonacci['15m']
-  const nearFibLevel = fibLevels15m.some(
-    (level) => Math.abs((lastClose15m - level) / level) < 0.005
-  )
-
-  if (nearFibLevel) {
-    if (buySignal) {
-      sellSignal = false
-    } else if (sellSignal) {
-      buySignal = false
-    }
-  }
-
-  const ichimoku15m = indicatorResults.Ichimoku['15m']
-  const lastTenkan15m = ichimoku15m.tenkanSen[ichimoku15m.tenkanSen.length - 1]
-  const lastKijun15m = ichimoku15m.kijunSen[ichimoku15m.kijunSen.length - 1]
-
-  if (lastTenkan15m !== undefined && lastKijun15m !== undefined) {
-    if (lastTenkan15m > lastKijun15m) {
-      buySignal = true
-      sellSignal = false
-    } else if (lastTenkan15m < lastKijun15m) {
-      sellSignal = true
-      buySignal = false
-    }
-  }
-
-  if (timeframe === null) {
+  if (trend === 'uptrend' && lastRsi15m < rsiOversold && indicatorResults.Volume['15m'] > indicatorResults.Volume['15m'] * 1.2 && adx15m > 25) {
+    buySignal = true
+    timeframe = '15m'
+  } else if (trend === 'downtrend' && lastRsi15m > rsiOverbought && closes['15m'][closes['15m'].length - 1] > lastBBUpper15m) {
+    sellSignal = true
     timeframe = '15m'
   }
 
@@ -171,7 +163,7 @@ export function generateSignals (
   return { buy: buySignal, sell: sellSignal, timeframe, takeProfitPercentage }
 }
 
-// Fonction pour définir le take profit en fonction de la période
+// Fonction de prise de profit dynamique
 function calculateDynamicTakeProfit (timeframe: string | null): number {
   switch (timeframe) {
     case '1m':
