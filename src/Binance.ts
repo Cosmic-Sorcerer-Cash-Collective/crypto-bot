@@ -77,7 +77,7 @@ export class TradingBot {
     const data: Record<string, dataBinance[]> = {}
 
     for (const [key, interval] of Object.entries(intervals)) {
-      const klines = await this.client.candles({ symbol, interval, limit: 100 })
+      const klines = await this.client.candles({ symbol, interval, limit: 250 })
       data[key] = klines as unknown as dataBinance[]
     }
 
