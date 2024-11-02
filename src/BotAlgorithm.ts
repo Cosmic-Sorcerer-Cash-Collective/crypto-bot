@@ -122,8 +122,8 @@ export function generateSignals (
   let trend: 'uptrend' | 'downtrend' | 'sideways' = 'sideways'
   const ichimoku1h = indicatorResults.Ichimoku['1h']
   const lastPrice1h = closes['1h'][closes['1h'].length - 1]
-  const lastSenkouSpanA1h = ichimoku1h.senkouSpanA[ichimoku1h.senkouSpanA.length - 1]
-  const lastSenkouSpanB1h = ichimoku1h.senkouSpanB[ichimoku1h.senkouSpanB.length - 1]
+  const lastSenkouSpanA1h = [...ichimoku1h.senkouSpanA].reverse().find((value): value is number => value !== undefined)
+  const lastSenkouSpanB1h = [...ichimoku1h.senkouSpanB].reverse().find((value): value is number => value !== undefined)
 
   if (lastSenkouSpanA1h === undefined || lastSenkouSpanB1h === undefined) {
     throw new Error('Impossible de déterminer la tendance actuelle')
