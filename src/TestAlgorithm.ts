@@ -1,130 +1,167 @@
-import Binance, { OrderSide, OrderType } from 'binance-api-node'
-import { Telegram } from './Telegram'
-/* eslint-disable @typescript-eslint/no-var-requires */
-require('dotenv').config()
+import axios from 'axios'
+import { generateSignals, IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from './BotAlgorithm'
+import { type dataBinance } from './utils/type'
 
-async function testOrderPlacement (): Promise<void> {
-  // Initialisation du client Binance et de Telegram
-  const client = Binance({
-    apiKey: process.env.BINANCE_API_KEY,
-    apiSecret: process.env.BINANCE_API_SECRET
-  })
+// Paramètres de l'API Binance et des timeframes
+const symbol = 'BTCUSDT'
+const timeframes = ['1m', '15m', '1h'] as const // Choisissez les timeframes nécessaires pour votre stratégie
+const limit = 1000 // Nombre maximum de bougies par requête
 
-  const telegram = new Telegram()
-  telegram.run()
+// Fonction pour récupérer les données de Binance pour un timeframe spécifique
+async function fetchBinanceData (timeframe: string, startTime: number, endTime: number): Promise<dataBinance[]> {
+  const url = 'https://api.binance.com/api/v3/klines'
+  const params = {
+    symbol,
+    interval: timeframe,
+    startTime,
+    endTime,
+    limit
+  }
 
-  const symbol = 'ATOMUSDT' // Paire à tester
-  const side = OrderSide.BUY // Ordre d'achat
-  let amountToSpend = 10 // Montant initial en USDT à dépenser
+  const response = await axios.get(url, { params })
+  return response.data.map((candle: any) => ({
+    open_time: candle[0].toString(),
+    open: candle[1].toString(),
+    high: candle[2].toString(),
+    low: candle[3].toString(),
+    close: candle[4].toString(),
+    volume: candle[5].toString(),
+    close_time: candle[6].toString(),
+    quote_volume: candle[7].toString(),
+    count: candle[8].toString(),
+    taker_buy_volume: candle[9].toString(),
+    taker_buy_quote_volume: candle[10].toString(),
+    ignore: candle[11].toString()
+  }))
+}
 
-  try {
-    // 1. Récupérer les informations de la paire pour LOT_SIZE, MIN_NOTIONAL et PRICE_FILTER
-    const exchangeInfo = await client.exchangeInfo()
-    const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === symbol)
+// Fonction pour charger des données multi-timeframes
+async function loadMultiTimeframeData (startTime: number, endTime: number): Promise<Record<string, dataBinance[]>> {
+  const data: Record<string, dataBinance[]> = {}
 
-    if (symbolInfo === undefined) {
-      console.error(`Informations pour ${symbol} introuvables.`)
-      return
+  for (const tf of timeframes) {
+    console.log(`Fetching ${tf} data...`)
+    data[tf] = await fetchBinanceData(tf, startTime, endTime)
+  }
+
+  return data
+}
+
+// Classe de backtest adaptée au multi-timeframe
+class MultiTimeframeBacktest {
+  private readonly dataMultiTimeframe: Record<string, dataBinance[]>
+  private balance: number
+  private readonly initialBalance: number
+  private position: 'long' | 'short' | null
+  private entryPrice: number | null
+
+  constructor (dataMultiTimeframe: Record<string, dataBinance[]>, initialBalance: number = 1000) {
+    this.dataMultiTimeframe = dataMultiTimeframe
+    this.balance = initialBalance
+    this.initialBalance = initialBalance
+    this.position = null
+    this.entryPrice = null
+  }
+
+  async runBacktest () {
+    const indicators = {
+      RSI: new IndicatorRSI(14),
+      MACD: new IndicatorMACD(12, 26, 9),
+      BollingerBands: new IndicatorBollingerBands(20, 2),
+      Ichimoku: new IndicatorIchimoku()
     }
 
-    const lotSizeFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')
-    const notionalFilter = symbolInfo.filters.find(f => f.filterType === 'MIN_NOTIONAL')
-    const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER')
+    const signals = []
 
-    if (lotSizeFilter === undefined || !('minQty' in lotSizeFilter && 'stepSize' in lotSizeFilter)) {
-      console.error(`LOT_SIZE filter introuvable ou incomplet pour ${symbol}.`)
-      return
+    for (let i = 50; i < this.dataMultiTimeframe['1m'].length; i++) { // Utilise le timeframe 1m comme pilote
+      const slicedData: Record<string, dataBinance[]> = {}
+
+      for (const tf of timeframes) {
+        slicedData[tf] = this.dataMultiTimeframe[tf].slice(0, Math.min(i + 1, this.dataMultiTimeframe[tf].length))
+      }
+
+      // Vérifier la présence des données avant de générer les signaux
+      if (!slicedData['1m'] || slicedData['1m'].length === 0) {
+        console.warn(`Aucune donnée disponible pour le timeframe '1m' à l'indice ${i}`)
+        continue
+      }
+      if (!slicedData['15m'] || slicedData['15m'].length === 0) {
+        console.warn(`Aucune donnée disponible pour le timeframe '15m' à l'indice ${i}`)
+        continue
+      }
+      if (!slicedData['1h'] || slicedData['1h'].length === 0) {
+        console.warn(`Aucune donnée disponible pour le timeframe '1h' à l'indice ${i}`)
+        continue
+      }
+
+      try {
+        // Convertir les données en nombre pour les indicateurs
+        const closes = slicedData['1m'].map(d => parseFloat(d.close))
+        const signal = generateSignals(slicedData, indicators)
+
+        // Vérifier que le signal est bien généré
+        if (!signal) {
+          console.warn(`Aucun signal généré pour l'indice ${i}`)
+          continue
+        }
+
+        signals.push({ ...signal, timestamp: this.dataMultiTimeframe['1m'][i].open_time })
+
+        if (signal.buy && this.position !== 'long') {
+          this.enterPosition('long', parseFloat(this.dataMultiTimeframe['1m'][i].close))
+        } else if (signal.sell && this.position !== 'short') {
+          this.enterPosition('short', parseFloat(this.dataMultiTimeframe['1m'][i].close))
+        }
+
+        if (this.position === 'long' && this.shouldExitPosition(signal)) {
+          this.exitPosition(parseFloat(this.dataMultiTimeframe['1m'][i].close))
+        } else if (this.position === 'short' && this.shouldExitPosition(signal)) {
+          this.exitPosition(parseFloat(this.dataMultiTimeframe['1m'][i].close))
+        }
+      } catch (error) {
+        console.error(`Erreur lors de la génération du signal à l'indice ${i}:`, error)
+      }
     }
 
-    if (priceFilter === undefined || !('tickSize' in priceFilter)) {
-      console.error(`PRICE_FILTER introuvable ou incomplet pour ${symbol}.`)
-      return
-    }
+    this.logResults()
+  }
 
-    const minQty = parseFloat(lotSizeFilter.minQty)
-    const stepSize = parseFloat(lotSizeFilter.stepSize)
-    const tickSize = parseFloat(priceFilter.tickSize)
+  enterPosition (position: 'long' | 'short', price: number) {
+    console.log(`Entering ${position} at price ${price}`)
+    this.position = position
+    this.entryPrice = price
+  }
 
-    let minNotional = 5 // Fallback valeur par défaut
+  exitPosition (price: number) {
+    const profit = this.position === 'long' ? price - this.entryPrice! : this.entryPrice! - price
+    this.balance += profit
+    console.log(`Exiting ${this.position} at price ${price}. Profit: ${profit}`)
+    this.position = null
+    this.entryPrice = null
+  }
 
-    if (notionalFilter !== undefined && 'minNotional' in notionalFilter) {
-      minNotional = parseFloat(notionalFilter.minNotional as string)
-    } else {
-      console.warn(`MIN_NOTIONAL filter introuvable pour ${symbol}. Utilisation de la valeur par défaut: ${minNotional} USDT.`)
-    }
+  shouldExitPosition (signal: { buy: boolean, sell: boolean, timeframe: string | null, takeProfitPercentage: number }) {
+    const exitPrice = this.entryPrice! * (1 + (signal.takeProfitPercentage / 100) * (this.position === 'long' ? 1 : -1))
+    return (this.position === 'long' && parseFloat(this.dataMultiTimeframe['1m'][this.dataMultiTimeframe['1m'].length - 1].close) >= exitPrice) ||
+           (this.position === 'short' && parseFloat(this.dataMultiTimeframe['1m'][this.dataMultiTimeframe['1m'].length - 1].close) <= exitPrice)
+  }
 
-    // 2. Récupérer le dernier prix pour la paire
-    const ticker = await client.prices({ symbol })
-    const price = parseFloat(ticker[symbol])
-
-    if (price === undefined) {
-      console.error(`Impossible de récupérer le prix pour ${symbol}`)
-      return
-    }
-
-    // 3. Calculer la quantité à acheter
-    let quantity = (amountToSpend / price).toFixed(6)
-
-    // 4. Ajuster la quantité pour respecter les règles de LOT_SIZE
-    quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
-
-    // Vérifier si la quantité est suffisante (minQty)
-    if (parseFloat(quantity) < minQty) {
-      console.error(`Quantité trop petite pour ${symbol}. Quantité minimale: ${minQty}, Quantité calculée: ${quantity}`)
-      return
-    }
-
-    // 5. Vérifier si la valeur totale (quantity * price) respecte le minNotional
-    let notionalValue = parseFloat(quantity) * price
-    if (notionalValue < minNotional) {
-      console.warn(`Valeur totale trop petite (${notionalValue} USDT) pour ${symbol}. Ajustement pour atteindre ${minNotional} USDT.`)
-      amountToSpend = minNotional + 0.1 // Ajuster pour dépasser légèrement le minNotional
-      quantity = (amountToSpend / price).toFixed(6)
-      quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
-      notionalValue = parseFloat(quantity) * price
-    }
-
-    // 6. Placer un ordre de marché pour acheter la quantité calculée
-    await client.order({
-      symbol,
-      side,
-      quantity,
-      type: OrderType.MARKET
-    })
-
-    console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}, montant total: ${notionalValue} USDT`)
-    await telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}, montant total: ${notionalValue} USDT`)
-
-    // 7. Si achat, définir le Take Profit et Stop Loss
-    if (side === OrderSide.BUY) {
-      let takeProfitPrice = (price * 1.02).toFixed(6) // 2% au-dessus du prix d'achat
-      let stopLossPrice = (price * 0.98).toFixed(6) // 2% en dessous du prix d'achat
-
-      // 8. Ajuster les prix de Take Profit et Stop Loss selon la tickSize
-      takeProfitPrice = (Math.floor(parseFloat(takeProfitPrice) / tickSize) * tickSize).toFixed(6)
-      stopLossPrice = (Math.floor(parseFloat(stopLossPrice) / tickSize) * tickSize).toFixed(6)
-
-      // Placer des ordres Stop Loss et Take Profit
-      await client.order({
-        symbol,
-        side: OrderSide.SELL,
-        quantity,
-        price: takeProfitPrice, // Take Profit à 2%
-        stopPrice: stopLossPrice, // Stop Loss à 2%
-        type: OrderType.STOP_LOSS_LIMIT
-      })
-
-      console.log(`Take Profit à ${takeProfitPrice} et Stop Loss à ${stopLossPrice} placés pour ${symbol}`)
-      await telegram.sendMessageAll(`Take Profit à ${takeProfitPrice} et Stop Loss à ${stopLossPrice} placés pour ${symbol}`)
-    }
-  } catch (error) {
-    console.error(`Erreur lors de la tentative de placement d'ordre pour ${symbol}:`, error)
-    await telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`)
+  logResults () {
+    console.log('Backtest Results:')
+    console.log(`Initial Balance: $${this.initialBalance}`)
+    console.log(`Final Balance: $${this.balance}`)
+    console.log(`Total Profit: $${this.balance - this.initialBalance}`)
+    console.log(`Return: ${(this.balance - this.initialBalance) / this.initialBalance * 100}%`)
   }
 }
 
-testOrderPlacement().then(() => {
-  console.log('Test d\'achat terminé')
-}).catch((error) => {
-  console.error('Erreur lors du test:', error)
-})
+// Exécution du backtest multi-timeframe
+async function main () {
+  const endTime = Date.now()
+  const startTime = endTime - 30 * 24 * 60 * 60 * 1000 // 30 jours de données
+  const dataMultiTimeframe = await loadMultiTimeframeData(startTime, endTime)
+  const backtest = new MultiTimeframeBacktest(dataMultiTimeframe)
+  await backtest.runBacktest()
+}
+
+main().catch(console.error)

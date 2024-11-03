@@ -93,90 +93,116 @@ export class TradingBot {
 
   private async placeOrder (symbol: string, side: OrderSide, takeProfitPercentage: number): Promise<void> {
     try {
-      // 1. Récupérer les informations de la paire pour LOT_SIZE et PRICE_FILTER
-      const exchangeInfo = await this.client.exchangeInfo()
-      const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === symbol)
+      const symbolInfo = await this.getSymbolInfo(symbol)
+      if (symbolInfo === null) return
 
-      if (symbolInfo === undefined) {
-        console.error(`Informations pour ${symbol} introuvables.`)
-        return
-      }
+      const { minQty, stepSize, tickSize } = symbolInfo
 
-      const lotSizeFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')
-      const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER')
+      const price = await this.getLastPrice(symbol)
+      if (price === undefined) return
 
-      if (lotSizeFilter === undefined || !('minQty' in lotSizeFilter && 'stepSize' in lotSizeFilter)) {
-        console.error(`Filtres LOT_SIZE ou PRICE_FILTER introuvables pour ${symbol}.`)
-        return
-      }
+      const quantity = this.calculateQuantity(price, stepSize, side, symbol, minQty)
+      if (quantity === null) return
 
-      if (priceFilter === undefined || !('tickSize' in priceFilter)) {
-        console.error(`PRICE_FILTER introuvable ou incomplet pour ${symbol}.`)
-        return
-      }
-
-      const minQty = parseFloat(lotSizeFilter.minQty)
-      const stepSize = parseFloat(lotSizeFilter.stepSize)
-      const tickSize = parseFloat(priceFilter.tickSize)
-
-      // 2. Récupérer le dernier prix pour la paire
-      const ticker = await this.client.prices({ symbol })
-      const price = parseFloat(ticker[symbol])
-
-      if (price === undefined) {
-        console.error(`Impossible de récupérer le prix pour ${symbol}`)
-        return
-      }
-
-      // 3. Vérification du solde
-      const accountInfo = await this.client.accountInfo()
-      const assetBalance = accountInfo.balances.find(b => b.asset === (side === OrderSide.BUY ? 'USDT' : symbol.replace('USDT', '')))
-      const amountToSpend = parseFloat(process.env.AMOUNT_TO_SPEND ?? '10')
-      let quantity = (amountToSpend / price).toFixed(6)
-      quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
-
-      if (assetBalance === undefined || parseFloat(assetBalance.free) < (side === OrderSide.BUY ? amountToSpend : parseFloat(quantity))) {
-        console.error(`Balance insuffisante pour ${symbol}. Disponible: ${assetBalance?.free}`)
-        return
-      }
-
-      quantity = (amountToSpend / price).toFixed(6)
-      quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
-
-      if (parseFloat(quantity) < minQty) {
-        console.error(`Quantité trop petite pour ${symbol}. Quantité minimale: ${minQty}, Quantité calculée: ${quantity}`)
-        return
-      }
-
-      this.client.order({
-        symbol,
-        side,
-        quantity,
-        type: OrderType.MARKET
-      }).catch(console.error)
-
-      console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
-      this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`).catch(console.error)
+      await this.executeMarketOrder(symbol, side, quantity)
 
       if (side === OrderSide.BUY) {
-        let sellLimitPrice = (price * (1 + takeProfitPercentage / 100)).toFixed(6)
-        sellLimitPrice = (Math.floor(parseFloat(sellLimitPrice) / tickSize) * tickSize).toFixed(6)
-
-        this.client.order({
-          symbol,
-          side: OrderSide.SELL,
-          quantity,
-          price: sellLimitPrice,
-          type: OrderType.LIMIT,
-          timeInForce: 'GTC'
-        }).catch(console.error)
-
-        console.log(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`)
-        this.telegram.sendMessageAll(`Ordre limite de vente placé à ${sellLimitPrice} pour ${symbol}`).catch(console.error)
+        await this.placeOCOOrder(symbol, quantity, price, takeProfitPercentage, tickSize)
+      } else {
+        console.log(`Ordre de vente suggestif pour ${symbol} placé.`)
       }
     } catch (error) {
       console.error(`Erreur lors du placement d'ordre pour ${symbol}:`, error)
       this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`).catch(console.error)
     }
+  }
+
+  private async getSymbolInfo (symbol: string): Promise<{ minQty: number, stepSize: number, tickSize: number } | null> {
+    const exchangeInfo = await this.client.exchangeInfo()
+    const symbolInfo = exchangeInfo.symbols.find(s => s.symbol === symbol)
+
+    if (symbolInfo === undefined) {
+      console.error(`Informations pour ${symbol} introuvables.`)
+      return null
+    }
+
+    const lotSizeFilter = symbolInfo.filters.find(f => f.filterType === 'LOT_SIZE')
+    const priceFilter = symbolInfo.filters.find(f => f.filterType === 'PRICE_FILTER')
+
+    if (lotSizeFilter === undefined || !('minQty' in lotSizeFilter && 'stepSize' in lotSizeFilter)) {
+      console.error(`Filtres LOT_SIZE ou PRICE_FILTER introuvables pour ${symbol}.`)
+      return null
+    }
+
+    if (priceFilter === undefined || !('tickSize' in priceFilter)) {
+      console.error(`PRICE_FILTER introuvable ou incomplet pour ${symbol}.`)
+      return null
+    }
+
+    return {
+      minQty: parseFloat(lotSizeFilter.minQty),
+      stepSize: parseFloat(lotSizeFilter.stepSize),
+      tickSize: parseFloat(priceFilter.tickSize)
+    }
+  }
+
+  private async getLastPrice (symbol: string): Promise<number | undefined> {
+    const ticker = await this.client.prices({ symbol })
+    const price = parseFloat(ticker[symbol])
+    if (price === undefined) {
+      console.error(`Impossible de récupérer le prix pour ${symbol}`)
+    }
+    return price
+  }
+
+  private calculateQuantity (price: number, stepSize: number, side: OrderSide, symbol: string, minQty: number): string | null {
+    const amountToSpend = parseFloat(process.env.AMOUNT_TO_SPEND ?? '10')
+    let quantity = (amountToSpend / price).toFixed(6)
+    quantity = (Math.floor(parseFloat(quantity) / stepSize) * stepSize).toFixed(6)
+
+    if (parseFloat(quantity) < minQty) {
+      console.error(`Quantité trop petite pour ${symbol}. Quantité minimale: ${minQty}, Quantité calculée: ${quantity}`)
+      return null
+    }
+
+    return quantity
+  }
+
+  private async executeMarketOrder (symbol: string, side: OrderSide, quantity: string): Promise<void> {
+    await this.client.order({
+      symbol,
+      side,
+      quantity,
+      type: OrderType.MARKET
+    }).catch(console.error)
+
+    console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
+    this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`).catch(console.error)
+  }
+
+  private async placeOCOOrder (symbol: string, quantity: string, price: number, takeProfitPercentage: number, tickSize: number): Promise<void> {
+    const takeProfitPrice = this.calculatePrice(price, takeProfitPercentage, tickSize, true)
+    const stopPrice = this.calculatePrice(price, 2, tickSize, false)
+    const stopLimitPrice = this.calculatePrice(parseFloat(stopPrice), 1, tickSize, false)
+
+    await this.client.orderOco({
+      symbol,
+      side: OrderSide.SELL,
+      quantity,
+      price: takeProfitPrice,
+      stopPrice,
+      stopLimitPrice,
+      stopLimitTimeInForce: 'GTC'
+    }).catch(console.error)
+
+    console.log(`Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`)
+    this.telegram.sendMessageAll(`Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`).catch(console.error)
+  }
+
+  private calculatePrice (basePrice: number, percentage: number, tickSize: number, isIncrease: boolean): string {
+    const factor = isIncrease ? 1 + percentage / 100 : 1 - percentage / 100
+    let price = (basePrice * factor).toFixed(6)
+    price = (Math.floor(parseFloat(price) / tickSize) * tickSize).toFixed(6)
+    return price
   }
 }

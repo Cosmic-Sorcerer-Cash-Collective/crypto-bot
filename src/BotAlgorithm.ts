@@ -159,23 +159,5 @@ export function generateSignals (
     timeframe = '15m'
   }
 
-  const takeProfitPercentage = calculateDynamicTakeProfit(timeframe)
-  return { buy: buySignal, sell: sellSignal, timeframe, takeProfitPercentage }
-}
-
-// Fonction de prise de profit dynamique
-function calculateDynamicTakeProfit (timeframe: string | null): number {
-  switch (timeframe) {
-    case '1m':
-    case '3m':
-      return 0.8
-    case '5m':
-    case '15m':
-      return 1.5
-    case '30m':
-    case '1h':
-      return 5.0
-    default:
-      return 2.0
-  }
+  return { buy: buySignal, sell: sellSignal, timeframe, takeProfitPercentage: 1.5 }
 }
