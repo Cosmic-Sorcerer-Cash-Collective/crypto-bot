@@ -1,7 +1,8 @@
 import Binance, { CandleChartInterval, OrderSide, OrderType } from 'binance-api-node'
 import { type dataBinance } from './utils/type'
-import { generateSignals, IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from './BotAlgorithm'
+import { generateSignals } from './BotAlgorithm'
 import { Telegram } from './Telegram'
+import { IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from './utils/indicatorClass'
 
 export class TradingBot {
   private readonly client: ReturnType<typeof Binance>
@@ -104,17 +105,61 @@ export class TradingBot {
       const quantity = this.calculateQuantity(price, stepSize, side, symbol, minQty)
       if (quantity === null) return
 
-      await this.executeMarketOrder(symbol, side, quantity)
-
       if (side === OrderSide.BUY) {
+        await this.executeMarketOrder(symbol, side, quantity)
         await this.placeOCOOrder(symbol, quantity, price, takeProfitPercentage, tickSize)
       } else {
-        console.log(`Ordre de vente suggestif pour ${symbol} placé.`)
+        await this.handleSellOrder(symbol, quantity, price)
       }
     } catch (error) {
       console.error(`Erreur lors du placement d'ordre pour ${symbol}:`, error)
       this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`).catch(console.error)
     }
+  }
+
+  private async handleSellOrder (symbol: string, quantity: string, currentPrice: number): Promise<void> {
+    const openOrders = await this.client.openOrders({ symbol })
+    const ocoOrders = openOrders.filter(order =>
+      order.type === 'STOP_LOSS_LIMIT' || order.type === 'TAKE_PROFIT_LIMIT'
+    )
+
+    if (ocoOrders.length > 0) {
+      const entryPrice = await this.getEntryPrice(symbol)
+      if (entryPrice === undefined) {
+        console.error(`Impossible de récupérer le prix d'entrée pour ${symbol}`)
+        return
+      }
+
+      const potentialProfit = this.calculateProfit(entryPrice, currentPrice)
+      const minProfitPercentage = 1
+
+      if (potentialProfit >= minProfitPercentage) {
+        for (const order of ocoOrders) {
+          await this.client.cancelOrder({ symbol, orderId: order.orderId })
+          console.log(`Ordre ${order.type} annulé pour ${symbol} (ID: ${order.orderId})`)
+        }
+        await this.executeMarketOrder(symbol, OrderSide.SELL, quantity)
+      } else {
+        console.log(`Profit potentiel insuffisant pour vendre ${symbol}. Profit actuel : ${potentialProfit}%`)
+      }
+    } else {
+      await this.executeMarketOrder(symbol, OrderSide.SELL, quantity)
+    }
+  }
+
+  private async getEntryPrice (symbol: string): Promise<number | undefined> {
+    const trades = await this.client.myTrades({ symbol })
+    const lastBuyTrade = trades.reverse().find(trade => trade.isBuyer)
+
+    if (lastBuyTrade !== undefined) {
+      return parseFloat(lastBuyTrade.price)
+    }
+
+    return undefined
+  }
+
+  private calculateProfit (entryPrice: number, currentPrice: number): number {
+    return ((currentPrice - entryPrice) / entryPrice) * 100
   }
 
   private async getSymbolInfo (symbol: string): Promise<{ minQty: number, stepSize: number, tickSize: number } | null> {

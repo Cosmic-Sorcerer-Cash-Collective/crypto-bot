@@ -8,7 +8,6 @@ const apiSecret = process.env.BINANCE_API_SECRET ?? ''
 
 // Liste des paires à trader
 const pairs = [
-  'BTCUSDT',
   'ETHUSDT',
   'BNBUSDT',
   'SOLUSDT',
