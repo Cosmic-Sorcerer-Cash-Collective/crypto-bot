@@ -1,29 +1,31 @@
-import { cache, CACHE_TTL, type dataBinance } from './type'
+import redis from '../config/redis'
+import { CACHE_TTL, type dataBinance } from './type'
 
-export function getCache (symbol: string, interval: string): dataBinance[] | null {
-  const cachedEntry = cache[symbol]
-  if (cachedEntry !== undefined && cachedEntry.expiry > Date.now()) {
-    return cachedEntry.data[interval] ?? null
-  }
-  return null
-}
-
-export function setCache (symbol: string, interval: string, data: dataBinance[]): void {
-  if (cache[symbol] === undefined) {
-    cache[symbol] = { data: {}, expiry: 0 }
-  }
-  cache[symbol].data[interval] = data
-  cache[symbol].expiry = Date.now() + CACHE_TTL[interval]
-}
-
-export function cleanCache (): void {
-  const now = Date.now()
-  for (const [symbol, entry] of Object.entries(cache)) {
-    if (entry.expiry <= now) {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete cache[symbol]
+export async function getCache (symbol: string, interval: string): Promise<dataBinance[] | null> {
+  const key = `${symbol}:${interval}`
+  try {
+    const cachedData = await redis.get(key)
+    if (cachedData === null) {
+      return null
     }
+    try {
+      return JSON.parse(cachedData as string) as dataBinance[]
+    } catch (parseError) {
+      console.error(`Erreur de parsing JSON pour ${key}:`, parseError)
+      return null
+    }
+  } catch (error) {
+    console.error(`Erreur lors de la récupération du cache pour ${key}:`, error)
+    return null
   }
 }
 
-setInterval(cleanCache, 5 * 60 * 1000)
+export async function setCache (symbol: string, interval: string, data: dataBinance[]): Promise<void> {
+  const key = `${symbol}:${interval}`
+  const ttl = CACHE_TTL[interval] ?? 3600
+  try {
+    await redis.set(key, JSON.stringify(data), 'EX', ttl)
+  } catch (error) {
+    console.error(`Erreur lors de l'enregistrement dans le cache pour ${key}:`, error)
+  }
+}

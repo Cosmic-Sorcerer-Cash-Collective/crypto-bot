@@ -33,13 +33,6 @@ export interface IchimokuResult {
   chikouSpan: Array<number | undefined>
 }
 
-export interface CacheEntry {
-  data: Record<string, dataBinance[]>
-  expiry: number
-}
-
-export const cache: Record<string, CacheEntry> = {}
-
 export const CACHE_TTL: Record<string, number> = {
   '1m': 10 * 1000,
   '3m': 30 * 1000,

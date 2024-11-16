@@ -79,7 +79,7 @@ export class TradingBot {
     const data: Record<string, dataBinance[]> = {}
 
     for (const [key, interval] of Object.entries(intervals)) {
-      const cachedData = getCache(symbol, key)
+      const cachedData = await getCache(symbol, key)
       if (cachedData !== null) {
         data[key] = cachedData
       } else {
@@ -87,7 +87,7 @@ export class TradingBot {
         const formattedData = klines as unknown as dataBinance[]
         data[key] = formattedData
 
-        setCache(symbol, key, formattedData)
+        await setCache(symbol, key, formattedData)
       }
     }
 
