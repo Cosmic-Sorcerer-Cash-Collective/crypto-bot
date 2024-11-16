@@ -70,10 +70,18 @@ function getSignal (trend: 'uptrend' | 'downtrend' | 'sideways', dataMultiTimefr
     throw new Error('Impossible de déterminer le RSI actuel')
   }
 
-  if (trend === 'uptrend' && lastRsi < rsiOversold && currentVolume > avgVolume * 1.2 && adx > 25 && lastOBV > prevOBV && isNearFibLevel) {
-    buySignal = true
-  } else if (trend === 'downtrend' && lastRsi > rsiOverbought && closes[timeframes][closes[timeframes].length - 1] > lastBBUpper && adx > 20 && currentVolume > avgVolume * 1.2 && lastOBV < prevOBV && isNearFibResistance) {
-    sellSignal = true
+  if (trend === 'uptrend') {
+    if (rsi < rsiOverbought && currentVolume > avgVolume * 1.2 && adx > 25 && lastOBV > prevOBV && isNearFibLevel) {
+      buySignal = true
+    } else if (rsi < 40 && currentVolume > avgVolume && adx > 20 && lastOBV > prevOBV) {
+      buySignal = true
+    }
+  } else if (trend === 'downtrend') {
+    if (rsi > rsiOversold && close > lastBBUpper && adx > 20 && currentVolume > avgVolume * 1.2 && lastOBV < prevOBV && isNearFibResistance) {
+      sellSignal = true
+    } else if (rsi > 60 && close > lastBBUpper && adx > 20 && currentVolume > avgVolume && lastOBV < prevOBV) {
+      sellSignal = true
+    }
   }
 
   return { buySignal, sellSignal }
