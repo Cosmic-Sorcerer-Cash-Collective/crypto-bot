@@ -96,7 +96,15 @@ export function generateSignals (
     Ichimoku: IndicatorIchimoku
   }
 ): { buy: boolean, sell: boolean, takeProfitPercentage: number } {
+  // Initialisation des structures pour les données de clôture, hautes et basses
   const timeframes = ['1m', '3m', '5m', '15m', '30m', '1h'] as const
+  const requiredIntervals = ['1m', '3m', '5m', '15m', '30m', '1h'] as const
+  for (const interval of requiredIntervals) {
+    if (dataMultiTimeframe[interval] === undefined || dataMultiTimeframe[interval].length === 0) {
+      console.error(`Les données pour l'intervalle ${interval} sont manquantes ou invalides.`)
+      throw new Error(`Données manquantes ou invalides pour ${interval}`)
+    }
+  }
   const closes: Record<string, number[]> = {}
   const highs: Record<string, number[]> = {}
   const lows: Record<string, number[]> = {}
@@ -107,6 +115,7 @@ export function generateSignals (
     lows[tf] = dataMultiTimeframe[tf].map((d) => parseFloat(d.low))
   }
 
+  // Calcul des indicateurs techniques pour chaque intervalle
   const indicatorResults: {
     RSI: Record<string, Array<number | undefined>>
     MACD: Record<string, MACDResult>
@@ -138,18 +147,33 @@ export function generateSignals (
     indicatorResults.MACD[tf] = indicators.MACD.calculate(closes[tf])
     indicatorResults.BollingerBands[tf] = indicators.BollingerBands.calculate(closes[tf])
     indicatorResults.Ichimoku[tf] = indicators.Ichimoku.calculate(highs[tf], lows[tf], closes[tf])
-    indicatorResults.Fibonacci[tf] = calculateFibonacciLevels(Math.max(...highs[tf].slice(-30)), Math.min(...lows[tf].slice(-30)))
+    indicatorResults.Fibonacci[tf] = calculateFibonacciLevels(
+      Math.max(...highs[tf].slice(-30)),
+      Math.min(...lows[tf].slice(-30))
+    )
     indicatorResults.ATR[tf] = calculateATR([highs[tf], lows[tf], closes[tf]], 14)
-    indicatorResults.Volume[tf] = calculateAverageVolume(dataMultiTimeframe[tf].map(d => ({ volume: parseFloat(d.volume) })), 20)
-    indicatorResults.ADX[tf] = calculateADX(closes[tf].map((c, i) => ({ close: c, high: highs[tf][i], low: lows[tf][i] })), 14)
+    indicatorResults.Volume[tf] = calculateAverageVolume(
+      dataMultiTimeframe[tf].map((d) => ({ volume: parseFloat(d.volume) })),
+      20
+    )
+    indicatorResults.ADX[tf] = calculateADX(
+      closes[tf].map((c, i) => ({ close: c, high: highs[tf][i], low: lows[tf][i] })),
+      14
+    )
     indicatorResults.EMA50[tf] = calculateEMA(closes[tf], 50).filter((value): value is number => value !== undefined).reverse()[0]
     indicatorResults.EMA200[tf] = calculateEMA(closes[tf], 200).filter((value): value is number => value !== undefined).reverse()[0]
-    indicatorResults.OBV[tf] = calculateOBV(closes[tf], dataMultiTimeframe[tf].map(d => parseFloat(d.volume)))
+    indicatorResults.OBV[tf] = calculateOBV(
+      closes[tf],
+      dataMultiTimeframe[tf].map((d) => parseFloat(d.volume))
+    )
   }
+
+  // Analyse de la tendance sur différents intervalles
   const trendLong = getTendency(indicatorResults, closes, '1h')
   const trendShort = getTendency(indicatorResults, closes, '30m')
   const trendVeryShort = getTendency(indicatorResults, closes, '5m')
 
+  // Calcul du Take Profit dynamique basé sur l'ATR et l'ADX
   const atr15m = indicatorResults.ATR['15m']
   const adx15m = indicatorResults.ADX['15m']
 
@@ -157,12 +181,15 @@ export function generateSignals (
     throw new Error('Impossible de déterminer le RSI actuel')
   }
 
-  const trend = trendLong === 'uptrend' && trendShort === 'uptrend' && trendVeryShort === 'uptrend'
-    ? 'uptrend'
-    : trendLong === 'downtrend' && trendShort === 'downtrend' && trendVeryShort === 'downtrend'
-      ? 'downtrend'
-      : 'sideways'
+  // Analyse combinée des tendances pour déterminer la tendance générale
+  const trend =
+    trendLong === 'uptrend' && trendShort === 'uptrend' && trendVeryShort === 'uptrend'
+      ? 'uptrend'
+      : trendLong === 'downtrend' && trendShort === 'downtrend' && trendVeryShort === 'downtrend'
+        ? 'downtrend'
+        : 'sideways'
 
+  // Détection des signaux pour 15m et 5m
   const { buySignal: buySignal15m, sellSignal: sellSignal15m } = getSignal(
     trend,
     dataMultiTimeframe,
@@ -180,8 +207,14 @@ export function generateSignals (
     '5m'
   )
 
+  // Consolidation des signaux d'achat et de vente
   const buySignal = buySignal15m && buySignal5m
   const sellSignal = sellSignal15m || sellSignal5m
 
-  return { buy: buySignal, sell: sellSignal, takeProfitPercentage: calculateAdaptiveTakeProfit(atr15m, adx15m) }
+  // Retour des résultats finaux
+  return {
+    buy: buySignal,
+    sell: sellSignal,
+    takeProfitPercentage: calculateAdaptiveTakeProfit(atr15m, adx15m)
+  }
 }

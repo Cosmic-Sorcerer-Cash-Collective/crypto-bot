@@ -32,3 +32,19 @@ export interface IchimokuResult {
   senkouSpanB: Array<number | undefined>
   chikouSpan: Array<number | undefined>
 }
+
+export interface CacheEntry {
+  data: Record<string, dataBinance[]>
+  expiry: number
+}
+
+export const cache: Record<string, CacheEntry> = {}
+
+export const CACHE_TTL: Record<string, number> = {
+  '1m': 10 * 1000,
+  '3m': 30 * 1000,
+  '5m': 30 * 1000,
+  '15m': 2 * 60 * 1000,
+  '30m': 5 * 60 * 1000,
+  '1h': 10 * 60 * 1000
+}

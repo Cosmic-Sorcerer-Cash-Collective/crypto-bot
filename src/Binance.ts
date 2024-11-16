@@ -3,6 +3,7 @@ import { type dataBinance } from './utils/type'
 import { generateSignals } from './BotAlgorithm'
 import { Telegram } from './Telegram'
 import { IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from './utils/indicatorClass'
+import { getCache, setCache } from './utils/cache'
 
 export class TradingBot {
   private readonly client: ReturnType<typeof Binance>
@@ -14,6 +15,9 @@ export class TradingBot {
     BollingerBands: IndicatorBollingerBands
     Ichimoku: IndicatorIchimoku
   }
+
+  private readonly cache: Record<string, Record<string, { data: dataBinance[], expiry: number }> | undefined> = {}
+  private readonly CACHE_TTL = 60 * 1000
 
   constructor (apiKey: string, apiSecret: string, pairs: string[]) {
     this.client = Binance({
@@ -32,40 +36,37 @@ export class TradingBot {
   }
 
   public async startTrading (): Promise<void> {
-    for (const pair of this.pairs) {
-      try {
-        const dataMultiTimeframe = await this.fetchDataMultiTimeframe(pair)
-        const { buy, sell, takeProfitPercentage } = generateSignals(dataMultiTimeframe, this.indicators)
-        const openOrders = await this.client.openOrders({ symbol: pair })
-        const hasOpenOrder = openOrders.length > 0
+    await Promise.allSettled(
+      this.pairs.map(async (pair) => {
+        try {
+          console.log(`Traitement de la paire ${pair}...`)
+          const dataMultiTimeframe = await this.fetchDataMultiTimeframe(pair)
+          const { buy, sell, takeProfitPercentage } = generateSignals(dataMultiTimeframe, this.indicators)
 
-        if (hasOpenOrder) {
-          console.log(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
-          continue
-        }
-        if (buy || sell) {
-          if (buy) {
-            await this.placeOrder(pair, OrderSide.BUY, takeProfitPercentage)
-          } else if (sell) {
-            await this.placeOrder(pair, OrderSide.SELL, takeProfitPercentage)
+          const openOrders = await this.client.openOrders({ symbol: pair })
+          const hasOpenOrder = openOrders.length > 0
+          console.log(`Buy: ${buy}, Sell: ${sell}, Take Profit: ${takeProfitPercentage}%`)
+          if (buy || sell) {
+            if (hasOpenOrder) {
+              console.log(`Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`)
+              return
+            }
+            if (buy) {
+              await this.placeOrder(pair, OrderSide.BUY, takeProfitPercentage)
+            } else if (sell) {
+              await this.placeOrder(pair, OrderSide.SELL, takeProfitPercentage)
+            }
           }
+        } catch (error) {
+          console.error(`Erreur lors du traitement de la paire ${pair}:`, error)
         }
-      } catch (error) {
-        console.error(`Erreur lors du traitement de la paire ${pair}:`, error)
-      }
-    }
+      })
+    )
   }
 
   private async fetchDataMultiTimeframe (
     symbol: string
-  ): Promise<{
-      '1m': dataBinance[]
-      '3m': dataBinance[]
-      '5m': dataBinance[]
-      '15m': dataBinance[]
-      '30m': dataBinance[]
-      '1h': dataBinance[]
-    }> {
+  ): Promise<Record<string, dataBinance[]>> {
     const intervals: Record<string, CandleChartInterval> = {
       '1m': CandleChartInterval.ONE_MINUTE,
       '3m': CandleChartInterval.THREE_MINUTES,
@@ -78,18 +79,19 @@ export class TradingBot {
     const data: Record<string, dataBinance[]> = {}
 
     for (const [key, interval] of Object.entries(intervals)) {
-      const klines = await this.client.candles({ symbol, interval, limit: 250 })
-      data[key] = klines as unknown as dataBinance[]
+      const cachedData = getCache(symbol, key)
+      if (cachedData !== null) {
+        data[key] = cachedData
+      } else {
+        const klines = await this.client.candles({ symbol, interval, limit: 250 })
+        const formattedData = klines as unknown as dataBinance[]
+        data[key] = formattedData
+
+        setCache(symbol, key, formattedData)
+      }
     }
 
-    return data as {
-      '1m': dataBinance[]
-      '3m': dataBinance[]
-      '5m': dataBinance[]
-      '15m': dataBinance[]
-      '30m': dataBinance[]
-      '1h': dataBinance[]
-    }
+    return data
   }
 
   private async placeOrder (symbol: string, side: OrderSide, takeProfitPercentage: number): Promise<void> {

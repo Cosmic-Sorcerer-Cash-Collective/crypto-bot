@@ -36,7 +36,15 @@ const pairs = [
   'KAVAUSDT',
   'XLMUSDT',
   'EOSUSDT',
-  'FLOWUSDT'
+  'FLOWUSDT',
+  'PEPEUSDT',
+  'ARBUSDT',
+  'DYDXUSDT',
+  'OPUSDT',
+  'GMXUSDT',
+  'GALAUSDT',
+  'APTUSDT',
+  'IMXUSDT'
 ]
 
 const bot = new TradingBot(apiKey, apiSecret, pairs)
