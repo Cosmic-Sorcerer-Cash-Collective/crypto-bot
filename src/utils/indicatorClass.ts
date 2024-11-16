@@ -1,4 +1,4 @@
-import { calculateBollingerBands, calculateIchimoku, calculateMACD, calculateRSI } from '../TechnicalIndicator'
+import { calculateBollingerBands, calculateIchimoku, calculateMACD, calculateRSI } from '../algo/indicators/TechnicalIndicators'
 import { type BollingerBandsResult, type IchimokuResult, type MACDResult } from './type'
 
 export class IndicatorRSI {

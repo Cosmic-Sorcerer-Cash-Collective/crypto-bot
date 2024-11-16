@@ -1,4 +1,4 @@
-import { type MACDResult, type BollingerBandsResult, type IchimokuResult } from './utils/type'
+import { type MACDResult, type BollingerBandsResult, type IchimokuResult } from '../../utils/type'
 
 // Calcul du RSI
 export function calculateRSI (closes: number[], period: number): Array<number | undefined> {

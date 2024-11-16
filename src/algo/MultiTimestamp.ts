@@ -5,9 +5,9 @@ import {
   calculateADX,
   calculateEMA,
   calculateOBV
-} from './TechnicalIndicator'
-import { type IndicatorBollingerBands, type IndicatorIchimoku, type IndicatorMACD, type IndicatorRSI } from './utils/indicatorClass'
-import { type BollingerBandsResult, type IchimokuResult, type MACDResult, type dataBinance } from './utils/type'
+} from './indicators/TechnicalIndicators'
+import { type IndicatorBollingerBands, type IndicatorIchimoku, type IndicatorMACD, type IndicatorRSI } from '../utils/indicatorClass'
+import { type BollingerBandsResult, type IchimokuResult, type MACDResult, type dataBinance } from '../utils/type'
 
 function calculateAdaptiveTakeProfit (atr: number, adx: number): number {
   let takeProfitPercentage = 3
@@ -87,7 +87,7 @@ function getSignal (trend: 'uptrend' | 'downtrend' | 'sideways', dataMultiTimefr
   return { buySignal, sellSignal }
 }
 
-export function generateSignals (
+export function AlgoMultiTimestamp (
   dataMultiTimeframe: Record<string, dataBinance[]>,
   indicators: {
     RSI: IndicatorRSI

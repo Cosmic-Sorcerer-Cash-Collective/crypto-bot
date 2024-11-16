@@ -1,9 +1,9 @@
 import Binance, { CandleChartInterval, OrderSide, OrderType } from 'binance-api-node'
-import { type dataBinance } from './utils/type'
-import { generateSignals } from './BotAlgorithm'
-import { Telegram } from './Telegram'
-import { IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from './utils/indicatorClass'
-import { getCache, setCache } from './utils/cache'
+import { type dataBinance } from '../../utils/type'
+import { AlgoMultiTimestamp } from '../../algo/MultiTimestamp'
+import { Telegram } from '../communication/Telegram'
+import { IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from '../../utils/indicatorClass'
+import { getCache, setCache } from '../../utils/cache'
 
 export class TradingBot {
   private readonly client: ReturnType<typeof Binance>
@@ -17,7 +17,6 @@ export class TradingBot {
   }
 
   private readonly cache: Record<string, Record<string, { data: dataBinance[], expiry: number }> | undefined> = {}
-  private readonly CACHE_TTL = 60 * 1000
 
   constructor (apiKey: string, apiSecret: string, pairs: string[]) {
     this.client = Binance({
@@ -41,7 +40,7 @@ export class TradingBot {
         try {
           console.log(`Traitement de la paire ${pair}...`)
           const dataMultiTimeframe = await this.fetchDataMultiTimeframe(pair)
-          const { buy, sell, takeProfitPercentage } = generateSignals(dataMultiTimeframe, this.indicators)
+          const { buy, sell, takeProfitPercentage } = AlgoMultiTimestamp(dataMultiTimeframe, this.indicators)
 
           const openOrders = await this.client.openOrders({ symbol: pair })
           const hasOpenOrder = openOrders.length > 0
