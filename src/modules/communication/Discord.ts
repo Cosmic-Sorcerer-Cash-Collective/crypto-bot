@@ -27,7 +27,7 @@ export class Discord {
     const channel = await this.client.channels.fetch(channelId)
 
     // if (channel && channel.isTextBased()) {
-    if (channel !== null && channel.isTextBased() === true) {
+    if (channel !== null && channel.isTextBased()) {
       try {
         await (channel as TextChannel).send(message)
       } catch (error) {
@@ -53,21 +53,21 @@ export class Discord {
       console.log('Bot Discord prêt.')
 
       this.client.on('messageCreate', async (message) => {
-        if (message.author.bot === true) return
+        if (message.author.bot) return
 
         const content = message.content.toLowerCase()
 
         if (content === '/join') {
-          if (this.channelIds.includes(message.channel.id as string)) {
+          if (this.channelIds.includes(message.channel.id)) {
             message.reply('Ce canal est déjà inscrit pour les notifications.').catch(console.error)
           } else {
-            this.channelIds.push(message.channel.id as string)
+            this.channelIds.push(message.channel.id)
             message.reply('Ce canal a été inscrit avec succès pour les notifications.').catch(console.error)
           }
         }
 
         if (content === '/leave') {
-          const index = this.channelIds.indexOf(message.channel.id as string)
+          const index = this.channelIds.indexOf(message.channel.id)
           if (index !== -1) {
             this.channelIds.splice(index, 1)
             message.reply('Ce canal a été désinscrit des notifications.').catch(console.error)

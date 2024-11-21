@@ -44,10 +44,11 @@ function getTendency (indicatorResults: Record<string, any>, closes: Record<stri
   } else if (lastPrice < lastSenkouSpanA && lastPrice < lastSenkouSpanB && lastPrice < indicatorResults.EMA200[timeframes] && lastOBV < prevOBV) {
     trend = 'downtrend'
   }
+
   return trend
 }
 
-function getSignal (trend: 'uptrend' | 'downtrend' | 'sideways', dataMultiTimeframe: Record<string, dataBinance[]>, indicatorResults: Record<string, any>, closes: Record<string, number[]>, lastPrice1h: number, timeframes: '1m' | '3m' | '5m' | '15m' | '30m' | '1h'): { buySignal: boolean, sellSignal: boolean } {
+function getSignal (trend: 'uptrend' | 'downtrend' | 'sideways', dataMultiTimeframe: Record<string, dataBinance[]>, indicatorResults: Record<string, any>, closes: Record<string, number[]>, lastPrice1h: number, timeframes: '1m' | '3m' | '5m' | '15m' | '30m' | '1h', trendShort: 'uptrend' | 'downtrend' | 'sideways' = 'sideways'): { buySignal: boolean, sellSignal: boolean } {
   const rsi = indicatorResults.RSI[timeframes]
   const atr = indicatorResults.ATR[timeframes]
   const lastRsi = rsi[rsi.length - 1]
@@ -70,16 +71,33 @@ function getSignal (trend: 'uptrend' | 'downtrend' | 'sideways', dataMultiTimefr
     throw new Error('Impossible de déterminer le RSI actuel')
   }
 
-  if (trend === 'uptrend') {
-    if (rsi < rsiOverbought && currentVolume > avgVolume * 1.2 && adx > 25 && lastOBV > prevOBV && isNearFibLevel) {
-      buySignal = true
-    } else if (rsi < 40 && currentVolume > avgVolume && adx > 20 && lastOBV > prevOBV) {
-      buySignal = true
-    }
-  } else if (trend === 'downtrend') {
-    if (rsi > rsiOversold && close > lastBBUpper && adx > 20 && currentVolume > avgVolume * 1.2 && lastOBV < prevOBV && isNearFibResistance) {
-      sellSignal = true
-    } else if (rsi > 60 && close > lastBBUpper && adx > 20 && currentVolume > avgVolume && lastOBV < prevOBV) {
+  if (
+    rsi < rsiOverbought &&
+    currentVolume > avgVolume * 1.1 &&
+    adx > 25 &&
+    lastOBV > prevOBV &&
+    isNearFibLevel &&
+    lastClose > indicatorResults.EMA50['15m']
+  ) {
+    buySignal = true
+  } else if (
+    rsi < 40 &&
+    currentVolume > avgVolume &&
+    adx > 20 &&
+    lastOBV > prevOBV &&
+    isNearFibLevel &&
+    lastClose > indicatorResults.EMA200['15m']
+  ) {
+    buySignal = true
+  } if (trend === 'downtrend') {
+    if (
+      rsi > Math.max(rsiOversold, 60) &&
+      close > lastBBUpper &&
+      adx > 20 &&
+      currentVolume > avgVolume &&
+      lastOBV < prevOBV &&
+      (isNearFibResistance || trendShort === 'downtrend')
+    ) {
       sellSignal = true
     }
   }
@@ -115,7 +133,6 @@ export function AlgoMultiTimestamp (
     lows[tf] = dataMultiTimeframe[tf].map((d) => parseFloat(d.low))
   }
 
-  // Calcul des indicateurs techniques pour chaque intervalle
   const indicatorResults: {
     RSI: Record<string, Array<number | undefined>>
     MACD: Record<string, MACDResult>
@@ -168,12 +185,10 @@ export function AlgoMultiTimestamp (
     )
   }
 
-  // Analyse de la tendance sur différents intervalles
   const trendLong = getTendency(indicatorResults, closes, '1h')
   const trendShort = getTendency(indicatorResults, closes, '30m')
   const trendVeryShort = getTendency(indicatorResults, closes, '5m')
 
-  // Calcul du Take Profit dynamique basé sur l'ATR et l'ADX
   const atr15m = indicatorResults.ATR['15m']
   const adx15m = indicatorResults.ADX['15m']
 
@@ -181,22 +196,24 @@ export function AlgoMultiTimestamp (
     throw new Error('Impossible de déterminer le RSI actuel')
   }
 
-  // Analyse combinée des tendances pour déterminer la tendance générale
-  const trend =
-    trendLong === 'uptrend' && trendShort === 'uptrend' && trendVeryShort === 'uptrend'
-      ? 'uptrend'
-      : trendLong === 'downtrend' && trendShort === 'downtrend' && trendVeryShort === 'downtrend'
-        ? 'downtrend'
-        : 'sideways'
+  const uptrends = [trendLong, trendShort, trendVeryShort].filter(t => t === 'uptrend').length
+  const downtrends = [trendLong, trendShort, trendVeryShort].filter(t => t === 'downtrend').length
 
-  // Détection des signaux pour 15m et 5m
+  const trend =
+  uptrends >= 2
+    ? 'uptrend'
+    : downtrends >= 2
+      ? 'downtrend'
+      : 'sideways'
+
   const { buySignal: buySignal15m, sellSignal: sellSignal15m } = getSignal(
     trend,
     dataMultiTimeframe,
     indicatorResults,
     closes,
     closes['15m'][closes['15m'].length - 1],
-    '15m'
+    '15m',
+    trendShort
   )
   const { buySignal: buySignal5m, sellSignal: sellSignal5m } = getSignal(
     trend,
@@ -204,11 +221,12 @@ export function AlgoMultiTimestamp (
     indicatorResults,
     closes,
     closes['5m'][closes['5m'].length - 1],
-    '5m'
+    '5m',
+    trendShort
   )
 
   // Consolidation des signaux d'achat et de vente
-  const buySignal = buySignal15m && buySignal5m
+  const buySignal = buySignal15m || buySignal5m
   const sellSignal = sellSignal15m || sellSignal5m
 
   // Retour des résultats finaux
