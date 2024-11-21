@@ -1,14 +1,14 @@
 import Binance, { CandleChartInterval, OrderSide, OrderType } from 'binance-api-node'
 import { type dataBinance } from '../../utils/type'
 import { AlgoMultiTimestamp } from '../../algo/MultiTimestamp'
-import { Telegram } from '../communication/Telegram'
 import { IndicatorBollingerBands, IndicatorIchimoku, IndicatorMACD, IndicatorRSI } from '../../utils/indicatorClass'
 import { getCache, setCache } from '../../utils/cache'
+import { type CommunicationTool } from '../communication/CommunicationTool'
 
 export class TradingBot {
   private readonly client: ReturnType<typeof Binance>
   private readonly pairs: string[]
-  private readonly telegram: Telegram
+  private readonly communicationTools: CommunicationTool[]
   private readonly indicators: {
     RSI: IndicatorRSI
     MACD: IndicatorMACD
@@ -16,16 +16,23 @@ export class TradingBot {
     Ichimoku: IndicatorIchimoku
   }
 
-  private readonly cache: Record<string, Record<string, { data: dataBinance[], expiry: number }> | undefined> = {}
-
-  constructor (apiKey: string, apiSecret: string, pairs: string[]) {
+  constructor (apiKey: string, apiSecret: string, pairs: string[], options?: { communicationTool?: CommunicationTool | CommunicationTool[] }) {
     this.client = Binance({
       apiKey,
       apiSecret
     })
     this.pairs = pairs
-    this.telegram = new Telegram()
-    this.telegram.run()
+    if (options?.communicationTool !== undefined && options.communicationTool !== null) {
+      this.communicationTools = Array.isArray(options.communicationTool)
+        ? options.communicationTool.filter((tool): tool is CommunicationTool => tool !== undefined)
+        : [options.communicationTool]
+    } else {
+      this.communicationTools = []
+    }
+
+    this.communicationTools.forEach((communicationTool) => {
+      communicationTool.run()
+    })
     this.indicators = {
       RSI: new IndicatorRSI(),
       MACD: new IndicatorMACD(),
@@ -114,7 +121,9 @@ export class TradingBot {
       }
     } catch (error) {
       console.error(`Erreur lors du placement d'ordre pour ${symbol}:`, error)
-      this.telegram.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`).catch(console.error)
+      this.communicationTools.forEach((communicationTool) => {
+        communicationTool.sendMessageAll(`Erreur lors du placement de l'ordre pour ${symbol}`).catch(console.error)
+      })
     }
   }
 
@@ -223,7 +232,10 @@ export class TradingBot {
     }).catch(console.error)
 
     console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`)
-    this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`).catch(console.error)
+    // this.telegram.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`).catch(console.error)
+    this.communicationTools.forEach((communicationTool) => {
+      communicationTool.sendMessageAll(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`).catch(console.error)
+    })
   }
 
   private async placeOCOOrder (symbol: string, quantity: string, price: number, takeProfitPercentage: number, tickSize: number): Promise<void> {
@@ -242,7 +254,10 @@ export class TradingBot {
     }).catch(console.error)
 
     console.log(`Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`)
-    this.telegram.sendMessageAll(`Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`).catch(console.error)
+    // this.telegram.sendMessageAll(`Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`).catch(console.error)
+    this.communicationTools.forEach((communicationTool) => {
+      communicationTool.sendMessageAll(`Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`).catch(console.error)
+    })
   }
 
   private calculatePrice (basePrice: number, percentage: number, tickSize: number, isIncrease: boolean): string {

@@ -17,6 +17,7 @@
   "devDependencies": {
     "@types/node-telegram-bot-api": "^0.63.3",
     "@types/pg": "^8.11.0",
+    "@types/yargs": "^17.0.33",
     "@typescript-eslint/eslint-plugin": "^6.18.1",
     "@typescript-eslint/parser": "^6.18.1",
     "eslint": "^8.56.0",
@@ -34,9 +35,11 @@
     "csv-parse": "^5.5.3",
     "csv-parser": "^3.0.0",
     "csv-stringify": "^6.4.5",
+    "discord.js": "^14.16.3",
     "dotenv": "^16.4.5",
     "ioredis": "^5.4.1",
     "node-telegram-bot-api": "^0.64.0",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "yargs": "^17.7.2"
   }
 }

@@ -9,7 +9,7 @@ export async function getCache (symbol: string, interval: string): Promise<dataB
       return null
     }
     try {
-      return JSON.parse(cachedData as string) as dataBinance[]
+      return JSON.parse(cachedData) as dataBinance[]
     } catch (parseError) {
       console.error(`Erreur de parsing JSON pour ${key}:`, parseError)
       return null
