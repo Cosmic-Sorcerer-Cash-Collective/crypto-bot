@@ -128,6 +128,7 @@ function getSignal(
     (level: number) =>
       Math.abs((lastClose - level) / level) < 0.01 && lastClose > level
   );
+  const isNearBBUpper = Math.abs(lastClose - lastBBUpper) / lastBBUpper < 0.01;
 
   if (lastRsi === undefined || adx === undefined || lastBBUpper === undefined) {
     throw new Error('Impossible de déterminer le RSI actuel');
@@ -135,7 +136,7 @@ function getSignal(
 
   if (
     rsi < rsiOverbought &&
-    currentVolume > avgVolume * 1.1 &&
+    currentVolume > avgVolume &&
     adx > 25 &&
     lastOBV > prevOBV &&
     isNearFibLevel &&
@@ -155,7 +156,7 @@ function getSignal(
   if (trend === 'downtrend') {
     if (
       rsi > Math.max(rsiOversold, 60) &&
-      close > lastBBUpper &&
+      isNearBBUpper &&
       adx > 20 &&
       currentVolume > avgVolume &&
       lastOBV < prevOBV &&
