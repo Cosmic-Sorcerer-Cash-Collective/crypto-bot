@@ -16,6 +16,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    command: ["npm", "start"]
 
   redis:
     image: redis:6.2

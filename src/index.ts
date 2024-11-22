@@ -13,6 +13,7 @@ interface Arguments {
   telegram: boolean;
   discord: boolean;
   interval: number;
+  algo: 'MTF' | 'TM';
 }
 
 const argv = yargs(hideBin(process.argv))
@@ -31,6 +32,13 @@ const argv = yargs(hideBin(process.argv))
       type: 'number',
       default: 30,
       describe: 'Intervalle en secondes entre les cycles de trading',
+    },
+    algo: {
+      type: 'string',
+      default: 'MTF',
+      choices: ['MTF', 'TM'],
+      describe:
+        'Algorithme à utiliser : MTF (Multi-Timeframe) ou TM (Trend Momentum)',
     },
   })
   .strict()
@@ -57,12 +65,23 @@ const bot = new TradingBot(apiKey, apiSecret, pairs, {
 
 const interval = argv.interval * 1000;
 
-bot.runMTF().catch((error) => {
-  console.error(error);
-});
+// Fonction pour exécuter l'algorithme choisi
+const runAlgorithm = async () => {
+  try {
+    if (argv.algo === 'MTF') {
+      await bot.runMTF(); // Multi-Timeframe
+    } else if (argv.algo === 'TM') {
+      await bot.runTM(); // Trend Momentum
+    } else {
+      console.error(`Algorithme non reconnu : ${argv.algo}`);
+    }
+  } catch (error) {
+    console.error(`Erreur lors de l'exécution de l'algo ${argv.algo}:`, error);
+  }
+};
 
-setInterval(() => {
-  bot.runMTF().catch((error) => {
-    console.error(error);
-  });
-}, interval);
+// Exécuter l'algorithme une première fois
+runAlgorithm();
+
+// Exécuter l'algorithme à intervalle régulier
+setInterval(runAlgorithm, interval);
