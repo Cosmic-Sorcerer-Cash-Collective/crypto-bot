@@ -1,4 +1,4 @@
 export interface CommunicationTool {
-  sendMessageAll: (message: string) => Promise<void>
-  run: () => void
+  sendMessageAll: (message: string) => Promise<void>;
+  run: () => void;
 }

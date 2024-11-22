@@ -35,5 +35,5 @@ export const pairs = [
   'GMXUSDT',
   'GALAUSDT',
   'APTUSDT',
-  'IMXUSDT'
-]
+  'IMXUSDT',
+];
