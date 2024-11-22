@@ -5,6 +5,7 @@ import Binance, {
 } from 'binance-api-node';
 import { type dataBinance } from '../../utils/type';
 import { AlgoMultiTimestamp } from '../../algo/MultiTimestamp';
+import { algoMomentumStrategy } from '../../algo/MomentumTrendStrategy';
 import {
   IndicatorBollingerBands,
   IndicatorIchimoku,
@@ -96,6 +97,138 @@ export class TradingBot {
         }
       })
     );
+  }
+
+  public async runTM(): Promise<void> {
+    const pair = this.pairs[0];
+    const data = await this.fetchData(pair);
+    const { buy, sell } = await algoMomentumStrategy(data);
+
+    const openOrders = await this.client.openOrders({ symbol: pair });
+    const hasOpenOrder = openOrders.length > 0;
+    console.log(`Buy: ${buy}, Sell: ${sell}`);
+    if (buy || sell) {
+      if (hasOpenOrder) {
+        console.log(
+          `Ordre déjà ouvert pour ${pair}, aucune action supplémentaire.`
+        );
+        return;
+      }
+      if (buy) {
+        const quantity = await this.calculateQuantityForMargin(pair);
+        if (quantity) {
+          await this.marginBuy(pair, quantity);
+        }
+      } else if (sell) {
+        const quantity = await this.calculateQuantityForMargin(pair);
+        if (quantity) {
+          await this.marginSell(pair, quantity);
+        }
+      }
+    }
+  }
+
+  private async calculateQuantityForMargin(
+    symbol: string
+  ): Promise<string | null> {
+    try {
+      const accountInfo = await this.client.marginAccountInfo();
+      const asset = symbol.replace('USDT', '');
+      const assetInfo = accountInfo.userAssets.find((a) => a.asset === asset);
+
+      if (!assetInfo) {
+        console.error(`Actif ${asset} introuvable dans le compte de marge.`);
+        return null;
+      }
+
+      const freeBalance = parseFloat(assetInfo.free);
+      const minTradeAmount = 0.001;
+      const quantity =
+        Math.floor(freeBalance / minTradeAmount) * minTradeAmount;
+
+      if (quantity <= 0) {
+        console.error(
+          `Solde insuffisant pour trader ${asset}. Solde libre : ${freeBalance}`
+        );
+        return null;
+      }
+
+      return quantity.toFixed(6);
+    } catch (error) {
+      console.error(
+        'Erreur lors du calcul de la quantité pour le trading sur marge :',
+        error
+      );
+      return null;
+    }
+  }
+
+  private async fetchData(symbol: string): Promise<dataBinance[]> {
+    const cachedData = await getCache(symbol, '1m');
+    if (cachedData !== null) {
+      return cachedData;
+    }
+
+    const klines = await this.client.candles({
+      symbol,
+      interval: CandleChartInterval.ONE_MINUTE,
+      limit: 50,
+    });
+    const formattedData = klines as unknown as dataBinance[];
+    await setCache(symbol, '1m', formattedData);
+
+    return formattedData;
+  }
+
+  private async getMarginAccountInfo(): Promise<void> {
+    try {
+      const accountInfo = await this.client.marginAccountInfo();
+      console.log('Informations du compte de marge :', accountInfo);
+    } catch (error) {
+      console.error(
+        'Erreur lors de la récupération des informations du compte de marge :',
+        error
+      );
+    }
+  }
+
+  private async marginBuy(symbol: string, quantity: string): Promise<void> {
+    try {
+      const order = await this.client.marginOrder({
+        symbol,
+        side: OrderSide.BUY,
+        quantity,
+        type: OrderType.MARKET,
+        isIsolated: false,
+      });
+      console.log(
+        `Achat sur marge réussi pour ${symbol}, quantité: ${quantity}`
+      );
+      console.log('Détails de la commande :', order);
+    } catch (error) {
+      console.error(`Erreur lors de l'achat sur marge pour ${symbol} :`, error);
+    }
+  }
+
+  private async marginSell(symbol: string, quantity: string): Promise<void> {
+    try {
+      const order = await this.client.marginOrder({
+        symbol,
+        side: OrderSide.SELL,
+        quantity,
+        type: OrderType.MARKET,
+        isIsolated: false,
+      });
+      console.log(
+        `Vente sur marge réussie pour ${symbol}, quantité: ${quantity}`
+      );
+      console.log('Détails de la commande :', order);
+    } catch (error) {
+      console.error(
+        `Erreur lors de la vente sur marge pour ${symbol} :`,
+        error
+      );
+    }
   }
 
   private async fetchDataMultiTimeframe(
