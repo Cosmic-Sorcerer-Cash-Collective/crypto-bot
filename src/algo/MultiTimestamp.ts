@@ -94,10 +94,10 @@ export function getSignal(
   trendShort: 'uptrend' | 'downtrend' | 'sideways' = 'sideways'
 ): { buySignal: boolean; sellSignal: boolean } {
   const rsi = indicatorResults.RSI[timeframes];
-  const atr = indicatorResults.ATR[timeframes];
+  // const atr = indicatorResults.ATR[timeframes];
   const lastRsi = rsi[rsi.length - 1];
-  const rsiOverbought = 65 + (atr / lastPrice1h) * 10;
-  const rsiOversold = 35 - (atr / lastPrice1h) * 10;
+  // const rsiOverbought = 65 + (atr / lastPrice1h) * 10;
+  // const rsiOversold = 35 - (atr / lastPrice1h) * 10;
   let buySignal = false;
   let sellSignal = false;
   const adx = indicatorResults.ADX[timeframes];
@@ -151,49 +151,25 @@ export function getSignal(
 
   // **Conditions d'achat**
   if (
-    lastRsi < rsiOverbought && // RSI sous le seuil de surachat
-    currentVolume > avgVolume * 0.8 && // Volume supérieur à la moyenne
-    adx > 20 && // Force de la tendance élevée
-    lastOBV > prevOBV && // OBV en augmentation
-    isNearFibLevel && // Proche d'un support Fibonacci
-    lastClose > indicatorResults.EMA50['15m'] // Prix au-dessus de l'EMA50
-  ) {
-    buySignal = true;
-  }
-
-  // **Condition alternative d'achat**
-  else if (
-    lastRsi < 40 && // RSI faible (marché calme)
-    currentVolume > avgVolume * 0.8 &&
-    adx > 15 &&
-    lastOBV > prevOBV &&
+    lastRsi < 40 &&
+    currentVolume > avgVolume * 1.2 &&
+    adx > 20 &&
     isNearFibLevel &&
-    lastClose > indicatorResults.EMA200['15m'] // Prix au-dessus de l'EMA200
+    lastClose > indicatorResults.EMA50['15m'] &&
+    lastOBV > prevOBV
   ) {
-    buySignal = true;
-  } else if (lastRsi < 65 && adx > 20 && isNearFibLevel) {
     buySignal = true;
   }
 
   // **Conditions de vente**
-  if (trend === 'downtrend') {
-    if (
-      lastRsi > Math.max(rsiOversold, 60) &&
-      isNearBBUpper &&
-      adx > 15 &&
-      currentVolume > avgVolume &&
-      lastOBV < prevOBV &&
-      (isNearFibResistance || trendShort === 'downtrend')
-    ) {
-      sellSignal = true;
-    } else if (
-      lastRsi > 60 &&
-      isNearBBUpper &&
-      adx > 20 &&
-      isNearFibResistance
-    ) {
-      sellSignal = true;
-    }
+  if (
+    lastRsi > 70 &&
+    isNearBBUpper &&
+    adx > 25 &&
+    isNearFibResistance &&
+    lastOBV < prevOBV
+  ) {
+    sellSignal = true;
   }
 
   return { buySignal, sellSignal };
