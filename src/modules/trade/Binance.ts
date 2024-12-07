@@ -450,16 +450,19 @@ export class TradingBot {
         quantity,
         type: OrderType.MARKET,
       })
-      .catch(console.error);
-
-    console.log(`Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`);
-    this.communicationTools.forEach((communicationTool) => {
-      communicationTool
-        .sendMessageAll(
+      .then(() => {
+        console.log(
           `Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`
-        )
-        .catch(console.error);
-    });
+        );
+        this.communicationTools.forEach((communicationTool) => {
+          communicationTool
+            .sendMessageAll(
+              `Ordre ${side} placé pour ${symbol}, quantité: ${quantity}`
+            )
+            .catch(console.error);
+        });
+      })
+      .catch(console.error);
   }
 
   private async placeOCOOrder(
@@ -493,18 +496,19 @@ export class TradingBot {
         stopLimitPrice,
         stopLimitTimeInForce: 'GTC',
       })
-      .catch(console.error);
-
-    console.log(
-      `Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`
-    );
-    this.communicationTools.forEach((communicationTool) => {
-      communicationTool
-        .sendMessageAll(
+      .then(() => {
+        console.log(
           `Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`
-        )
-        .catch(console.error);
-    });
+        );
+        this.communicationTools.forEach((communicationTool) => {
+          communicationTool
+            .sendMessageAll(
+              `Ordre OCO de vente placé : Take Profit à ${takeProfitPrice}, Stop à ${stopPrice}, Stop Limit à ${stopLimitPrice} pour ${symbol}`
+            )
+            .catch(console.error);
+        });
+      })
+      .catch(console.error);
   }
 
   private calculatePrice(
