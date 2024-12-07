@@ -83,7 +83,7 @@ function getTendency(
   return trend;
 }
 
-function getSignal(
+export function getSignal(
   trend: 'uptrend' | 'downtrend' | 'sideways',
   dataMultiTimeframe: Record<string, dataBinance[]>,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,8 +96,8 @@ function getSignal(
   const rsi = indicatorResults.RSI[timeframes];
   const atr = indicatorResults.ATR[timeframes];
   const lastRsi = rsi[rsi.length - 1];
-  const rsiOverbought = 70 + (atr / lastPrice1h) * 10;
-  const rsiOversold = 30 - (atr / lastPrice1h) * 10;
+  const rsiOverbought = 65 + (atr / lastPrice1h) * 10;
+  const rsiOversold = 35 - (atr / lastPrice1h) * 10;
   let buySignal = false;
   let sellSignal = false;
   const adx = indicatorResults.ADX[timeframes];
@@ -122,7 +122,7 @@ function getSignal(
   const lastClose = closes[timeframes][closes[timeframes].length - 1];
   const isNearFibLevel: boolean = fibLevels.some(
     (level: number) =>
-      Math.abs((lastClose - level) / level) < 0.01 && lastClose < level
+      Math.abs((lastClose - level) / level) < 0.02 && lastClose < level
   );
   const isNearFibResistance: boolean = fibLevels.some(
     (level: number) =>
@@ -134,33 +134,63 @@ function getSignal(
     throw new Error('Impossible de déterminer le RSI actuel');
   }
 
+  console.log('--------------------');
+  console.log('RSI: ', lastRsi);
+  console.log('ADX: ', adx);
+  console.log('Volume: ', currentVolume);
+  console.log('OBV: ', lastOBV);
+  console.log('Fibonacci: ', fibLevels);
+  console.log('Close: ', lastClose);
+  console.log('BBUpper: ', lastBBUpper);
+  console.log('Trend: ', trend);
+  console.log('TrendShort: ', trendShort);
+  console.log('IsNearFibLevel: ', isNearFibLevel);
+  console.log('IsNearFibResistance: ', isNearFibResistance);
+  console.log('IsNearBBUpper: ', isNearBBUpper);
+  console.log('--------------------');
+
+  // **Conditions d'achat**
   if (
-    rsi < rsiOverbought &&
-    currentVolume > avgVolume &&
-    adx > 25 &&
-    lastOBV > prevOBV &&
-    isNearFibLevel &&
-    lastClose > indicatorResults.EMA50['15m']
-  ) {
-    buySignal = true;
-  } else if (
-    rsi < 40 &&
-    currentVolume > avgVolume &&
-    adx > 20 &&
-    lastOBV > prevOBV &&
-    isNearFibLevel &&
-    lastClose > indicatorResults.EMA200['15m']
+    lastRsi < rsiOverbought && // RSI sous le seuil de surachat
+    currentVolume > avgVolume * 0.8 && // Volume supérieur à la moyenne
+    adx > 20 && // Force de la tendance élevée
+    lastOBV > prevOBV && // OBV en augmentation
+    isNearFibLevel && // Proche d'un support Fibonacci
+    lastClose > indicatorResults.EMA50['15m'] // Prix au-dessus de l'EMA50
   ) {
     buySignal = true;
   }
+
+  // **Condition alternative d'achat**
+  else if (
+    lastRsi < 40 && // RSI faible (marché calme)
+    currentVolume > avgVolume * 0.8 &&
+    adx > 15 &&
+    lastOBV > prevOBV &&
+    isNearFibLevel &&
+    lastClose > indicatorResults.EMA200['15m'] // Prix au-dessus de l'EMA200
+  ) {
+    buySignal = true;
+  } else if (lastRsi < 65 && adx > 20 && isNearFibLevel) {
+    buySignal = true;
+  }
+
+  // **Conditions de vente**
   if (trend === 'downtrend') {
     if (
-      rsi > Math.max(rsiOversold, 60) &&
+      lastRsi > Math.max(rsiOversold, 60) &&
       isNearBBUpper &&
-      adx > 20 &&
+      adx > 15 &&
       currentVolume > avgVolume &&
       lastOBV < prevOBV &&
       (isNearFibResistance || trendShort === 'downtrend')
+    ) {
+      sellSignal = true;
+    } else if (
+      lastRsi > 60 &&
+      isNearBBUpper &&
+      adx > 20 &&
+      isNearFibResistance
     ) {
       sellSignal = true;
     }
