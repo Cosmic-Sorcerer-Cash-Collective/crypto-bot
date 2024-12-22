@@ -306,18 +306,18 @@ export function AlgoMultiTimestamp(
     '15m',
     trendShort
   );
-  const { buySignal: buySignal5m, sellSignal: sellSignal5m } = getSignal(
-    trend,
-    dataMultiTimeframe,
-    indicatorResults,
-    closes,
-    closes['5m'][closes['5m'].length - 1],
-    '5m',
-    trendShort
-  );
+  // const { buySignal: buySignal5m, sellSignal: sellSignal5m } = getSignal(
+  //   trend,
+  //   dataMultiTimeframe,
+  //   indicatorResults,
+  //   closes,
+  //   closes['5m'][closes['5m'].length - 1],
+  //   '5m',
+  //   trendShort
+  // );
 
-  const buySignal = buySignal15m || buySignal5m;
-  const sellSignal = sellSignal15m || sellSignal5m;
+  const buySignal = buySignal15m;
+  const sellSignal = sellSignal15m;
 
   return {
     buy: buySignal,
