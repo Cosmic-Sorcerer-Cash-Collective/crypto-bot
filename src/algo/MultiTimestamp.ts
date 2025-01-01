@@ -94,9 +94,9 @@ export function getSignal(
   trendShort: 'uptrend' | 'downtrend' | 'sideways' = 'sideways'
 ): { buySignal: boolean; sellSignal: boolean } {
   const rsi = indicatorResults.RSI[timeframes];
-  // const atr = indicatorResults.ATR[timeframes];
+  const atr = indicatorResults.ATR[timeframes];
   const lastRsi = rsi[rsi.length - 1];
-  // const rsiOverbought = 65 + (atr / lastPrice1h) * 10;
+  const rsiOverbought = 65 + (atr / lastPrice1h) * 10;
   // const rsiOversold = 35 - (atr / lastPrice1h) * 10;
   let buySignal = false;
   let sellSignal = false;
@@ -151,13 +151,27 @@ export function getSignal(
 
   // **Conditions d'achat**
   if (
-    lastRsi < 40 &&
-    currentVolume > avgVolume * 1.2 &&
+    lastRsi < rsiOverbought &&
+    currentVolume > avgVolume * 1 &&
     adx > 20 &&
+    lastOBV > prevOBV &&
     isNearFibLevel &&
-    lastClose > indicatorResults.EMA50['15m'] &&
-    lastOBV > prevOBV
+    lastClose > indicatorResults.EMA50['15m']
   ) {
+    buySignal = true;
+  }
+
+  // **Condition alternative d'achat**
+  else if (
+    lastRsi < 40 &&
+    currentVolume > avgVolume * 0.8 &&
+    adx > 15 &&
+    lastOBV > prevOBV &&
+    isNearFibLevel &&
+    lastClose > indicatorResults.EMA200['15m']
+  ) {
+    buySignal = true;
+  } else if (lastRsi < 65 && adx > 20 && isNearFibLevel) {
     buySignal = true;
   }
 
@@ -306,18 +320,18 @@ export function AlgoMultiTimestamp(
     '15m',
     trendShort
   );
-  // const { buySignal: buySignal5m, sellSignal: sellSignal5m } = getSignal(
-  //   trend,
-  //   dataMultiTimeframe,
-  //   indicatorResults,
-  //   closes,
-  //   closes['5m'][closes['5m'].length - 1],
-  //   '5m',
-  //   trendShort
-  // );
+  const { sellSignal: sellSignal5m } = getSignal(
+    trend,
+    dataMultiTimeframe,
+    indicatorResults,
+    closes,
+    closes['5m'][closes['5m'].length - 1],
+    '5m',
+    trendShort
+  );
 
   const buySignal = buySignal15m;
-  const sellSignal = sellSignal15m;
+  const sellSignal = sellSignal15m || sellSignal5m;
 
   return {
     buy: buySignal,
